@@ -333,25 +333,50 @@ const Renderer = {
   _drawBoss(e) {
     const x = e.pos.x, y = e.pos.y, r = e.radius;
     const phase = e.phase;
-    const col   = C.COL_BOSS;
+    const col = C.COL_BOSS;
+    const cr  = r * 0.88;   // cranium radius ~24.6
 
-    noFill(); stroke(col); strokeWeight(2.5);
-    circle(x, y, r * 2);
+    // Rotating outer aura — speed and count reflect phase
+    const rot    = G.frame * (0.018 + phase * 0.012);
+    const spokes = 4 + phase * 2;
+    noFill(); stroke(col); strokeWeight(1);
+    drawingContext.globalAlpha = 0.38;
+    for (let i = 0; i < spokes; i++) {
+      const a = (Math.PI * 2 / spokes) * i + rot;
+      line(x + Math.cos(a) * (cr + 3), y + Math.sin(a) * (cr + 3),
+           x + Math.cos(a) * (r + 9),  y + Math.sin(a) * (r + 9));
+    }
+    drawingContext.globalAlpha = 1;
 
-    // Rotating inner spokes (speed reflects phase)
-    stroke(col); strokeWeight(1);
-    const spokeCount = 4 + phase * 2;
-    const rot = G.frame * (0.015 + phase * 0.01);
-    for (let i = 0; i < spokeCount; i++) {
-      const a = (Math.PI * 2 / spokeCount) * i + rot;
-      line(x, y, x + Math.cos(a) * (r - 4), y + Math.sin(a) * (r - 4));
+    // Eye sockets (dark holes)
+    noStroke(); fill(C.COL_BG);
+    circle(x - 10, y - 5, 16);
+    circle(x + 10, y - 5, 16);
+
+    // Glowing pupils — pulse faster and brighter at higher phases
+    const pulseSpeed = 0.07 + phase * 0.045;
+    const baseAlpha  = 0.45 + phase * 0.15;
+    const glow = baseAlpha + (1 - baseAlpha) * (0.5 + 0.5 * Math.sin(G.frame * pulseSpeed));
+    drawingContext.globalAlpha = glow;
+    noStroke(); fill(col);
+    circle(x - 10, y - 5, 11);
+    circle(x + 10, y - 5, 11);
+    fill('#ffaaaa');
+    circle(x - 10, y - 5, 4.5);
+    circle(x + 10, y - 5, 4.5);
+    drawingContext.globalAlpha = 1;
+
+    // Teeth
+    noFill(); stroke(col); strokeWeight(1.5);
+    const toothTop = y + cr * 0.52;
+    for (let i = -2; i <= 2; i++) {
+      line(x + i * 9, toothTop, x + i * 9, toothTop + 9);
     }
 
-    // Inner ring
-    noFill(); stroke(col); strokeWeight(1);
-    circle(x, y, r * 0.8);
+    // Cranium outline — drawn last so it frames everything
+    noFill(); stroke(col); strokeWeight(2.5);
+    circle(x, y - 2, cr * 2);
 
-    // Full-width HP bar
     this._drawBossHP(e);
   },
 
@@ -597,6 +622,21 @@ const Renderer = {
         const nrx = ox + room.connections.east.gx * stepX;
         stroke('#3a3a5c'); strokeWeight(5);
         line(rx + cellW, ry + cellH / 2, nrx, ry + cellH / 2);
+      }
+    }
+
+    // Unvisited exit stubs — short thin lines hinting at unexplored passages
+    const stubLen = 10;
+    const stubEdge = { north: [cellW/2, 0, 0, -1], south: [cellW/2, cellH, 0, 1],
+                       east:  [cellW, cellH/2, 1, 0], west: [0, cellH/2, -1, 0] };
+    for (const room of visited) {
+      const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
+      stroke('#55557a'); strokeWeight(2);
+      for (const [dir, [ex, ey, dx, dy]] of Object.entries(stubEdge)) {
+        const nb = room.connections[dir];
+        if (nb && !nb.visited) {
+          line(rx + ex, ry + ey, rx + ex + dx * stubLen, ry + ey + dy * stubLen);
+        }
       }
     }
 
