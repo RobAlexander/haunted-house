@@ -8,6 +8,7 @@ class Player {
     this.radius           = C.PLAYER_RADIUS;
     this.invincibleFrames = 0;
     this.alive            = true;
+    this.wideShots        = 0;
   }
 
   update(keys, mx, my, room) {
@@ -49,10 +50,11 @@ class Player {
     if (this.fireCooldown > 0 || !this.alive) return;
     const vx = Math.cos(this.angle) * C.BULLET_SPEED;
     const vy = Math.sin(this.angle) * C.BULLET_SPEED;
-    // Spawn just beyond player edge so it doesn't self-collide
-    const ox = Math.cos(this.angle) * (this.radius + C.BULLET_RADIUS + 2);
-    const oy = Math.sin(this.angle) * (this.radius + C.BULLET_RADIUS + 2);
-    bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'player', C.BULLET_DAMAGE);
+    const r  = this.wideShots > 0 ? C.BULLET_RADIUS * 3 : C.BULLET_RADIUS;
+    if (this.wideShots > 0) this.wideShots--;
+    const ox = Math.cos(this.angle) * (this.radius + r + 2);
+    const oy = Math.sin(this.angle) * (this.radius + r + 2);
+    bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'player', C.BULLET_DAMAGE, r);
     this.fireCooldown = C.PLAYER_FIRE_RATE;
     AudioEngine.playSFX('shoot');
   }

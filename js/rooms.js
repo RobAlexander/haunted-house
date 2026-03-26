@@ -125,7 +125,17 @@ class DungeonGraph {
       const tr  = deadEnds[randInt(0, deadEnds.length - 1)];
       tr.type   = 'treasure';
       tr.pickup = { x: C.WIDTH / 2, y: C.HEIGHT / 2, amount: 40 };
-      tr.cleared = true;  // no enemies in treasure rooms
+      tr.cleared = true;
+
+      // Possibly place wide-bullet powerup in a second dead-end
+      const remaining = deadEnds.filter(r => r !== tr);
+      if (remaining.length > 0 && Math.random() < 0.65) {
+        const wr = remaining[randInt(0, remaining.length - 1)];
+        wr.widePowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+        wr.widePowerupActive = false;
+        wr.widePowerupTaken  = false;
+        wr.cleared           = true;
+      }
     }
 
     // Assign combat types and enemy counts to remaining rooms (scale with floor)

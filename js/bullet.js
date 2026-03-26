@@ -20,7 +20,7 @@ class BulletPool {
     }
   }
 
-  fire(x, y, vx, vy, owner, damage) {
+  fire(x, y, vx, vy, owner, damage, radius) {
     const b = this.pool.find(b => !b.active);
     if (!b) return;
     b.active   = true;
@@ -31,7 +31,7 @@ class BulletPool {
     b.ttl      = C.BULLET_TTL;
     b.owner    = owner  || 'player';
     b.damage   = damage || C.BULLET_DAMAGE;
-    b.radius   = C.BULLET_RADIUS;
+    b.radius   = radius !== undefined ? radius : C.BULLET_RADIUS;
   }
 
   update(player, enemies, room) {

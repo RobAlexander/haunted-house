@@ -79,6 +79,11 @@ function enterRoom(room, fromDir) {
     room.pickupActive = true;
   }
 
+  // Wide-bullet powerup room
+  if (room.widePowerup && !room.widePowerupTaken) {
+    room.widePowerupActive = true;
+  }
+
   // Audio: boss mode toggle + room enter SFX
   if (fromDir !== null) AudioEngine.playSFX('room_enter');
   AudioEngine.setBossMode(room.type === 'boss');
@@ -145,6 +150,18 @@ function checkPickup() {
     G.player.hp = Math.min(G.player.hp + pick.amount, G.player.maxHp);
     room.pickupTaken  = true;
     room.pickupActive = false;
+    AudioEngine.playSFX('pickup');
+  }
+}
+
+function checkWidePowerup() {
+  const room = G.currentRoom;
+  if (!room || !room.widePowerupActive || room.widePowerupTaken) return;
+  const p = room.widePowerup;
+  if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, p.x, p.y, 14)) {
+    G.player.wideShots      = C.WIDE_BULLET_SHOTS;
+    room.widePowerupTaken   = true;
+    room.widePowerupActive  = false;
     AudioEngine.playSFX('pickup');
   }
 }

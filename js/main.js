@@ -57,6 +57,7 @@ function draw() {
     checkRoomExit();
     checkPickup();
     checkDropPickup();
+    checkWidePowerup();
     tickParticles();
 
     if (G.clearedFlash > 0) G.clearedFlash--;

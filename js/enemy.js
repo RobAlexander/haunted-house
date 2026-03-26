@@ -15,6 +15,14 @@ class GhostEnemy {
     this.contactCooldown = 0;
     this.flickerAlpha    = 1.0;
     this.flickerOffset   = randFloat(0, Math.PI * 2);
+    // Per-instance shape deformation (6 values, range -1..1)
+    // [dome height, left bulge, right bulge, right foot, centre foot, left foot]
+    this.deform          = Array.from({ length: 6 }, () => randFloat(-1, 1));
+    // 30 % of ghosts are lunge variants (red, intermittent double-speed bursts)
+    this.variant      = Math.random() < 0.3 ? 'lunge' : 'normal';
+    this.lunging      = false;
+    this.lungeDuration = 0;
+    this.lungeTimer   = randInt(120, 250);
   }
 
   update(player, room) {
@@ -22,10 +30,24 @@ class GhostEnemy {
 
     const dist = circleDist(this.pos.x, this.pos.y, player.pos.x, player.pos.y);
 
-    if (dist < C.GHOST_CHASE_DIST) {
+    if (this.variant === 'lunge' && this.lunging) {
+      // Lunge: double-speed straight at player
+      const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      this.vel.x = n.x * C.GHOST_SPEED * 2.4;
+      this.vel.y = n.y * C.GHOST_SPEED * 2.4;
+      this.lungeDuration--;
+      if (this.lungeDuration <= 0) {
+        this.lunging   = false;
+        this.lungeTimer = randInt(150, 300);
+      }
+    } else if (dist < C.GHOST_CHASE_DIST) {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
       this.vel.x = n.x * C.GHOST_SPEED;
       this.vel.y = n.y * C.GHOST_SPEED;
+      if (this.variant === 'lunge') {
+        this.lungeTimer--;
+        if (this.lungeTimer <= 0) { this.lunging = true; this.lungeDuration = 22; }
+      }
     } else {
       this.wanderTimer--;
       if (this.wanderTimer <= 0) {
@@ -67,6 +89,96 @@ class GhostEnemy {
         this.pos.x += push.x; this.pos.y += push.y;
         if (Math.abs(push.x) > Math.abs(push.y)) this.vel.x *= -1; else this.vel.y *= -1;
         this.wanderTimer = 0;
+      }
+    }
+  }
+
+  takeDamage(amount) {
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.hp = 0; this.alive = false;
+      AudioEngine.playSFX('death');
+      _spawnDeathFX(this);
+    }
+  }
+}
+
+// ── Ghoul ─────────────────────────────────────────────────────────────────
+
+class GhoulEnemy {
+  constructor(x, y) {
+    this.pos             = { x, y };
+    this.vel             = { x: 0, y: 0 };
+    this.hp              = C.GHOUL_HP;
+    this.maxHp           = C.GHOUL_HP;
+    this.radius          = C.GHOUL_RADIUS;
+    this.type            = 'ghoul';
+    this.scoreValue      = C.SCORE_GHOUL;
+    this.alive           = true;
+    this.contactCooldown = 0;
+    this.leaping         = false;
+    this.leapDuration    = 0;
+    this.leapTimer       = randInt(80, 200);
+    this.crawlPhase      = randFloat(0, Math.PI * 2);
+  }
+
+  update(player, room) {
+    if (!this.alive) return;
+    const dist = circleDist(this.pos.x, this.pos.y, player.pos.x, player.pos.y);
+
+    if (this.leaping) {
+      const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      this.vel.x = n.x * C.GHOUL_LEAP_SPEED;
+      this.vel.y = n.y * C.GHOUL_LEAP_SPEED;
+      this.leapDuration--;
+      if (this.leapDuration <= 0) {
+        this.leaping   = false;
+        this.leapTimer = randInt(120, 240);
+      }
+    } else {
+      // Slow crawl toward player
+      if (dist < 350) {
+        const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+        this.vel.x = n.x * C.GHOUL_SPEED;
+        this.vel.y = n.y * C.GHOUL_SPEED;
+      } else {
+        this.vel.x *= 0.85;
+        this.vel.y *= 0.85;
+      }
+      // Trigger leap when close enough
+      if (dist < C.GHOUL_LEAP_RANGE) {
+        this.leapTimer--;
+        if (this.leapTimer <= 0) { this.leaping = true; this.leapDuration = 18; }
+      }
+    }
+
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+    this._resolveCollisions(room);
+    this.crawlPhase += 0.09;
+
+    // Contact damage
+    if (this.contactCooldown > 0) this.contactCooldown--;
+    if (this.contactCooldown === 0 &&
+        circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
+      player.takeDamage(C.GHOUL_CONTACT_DAMAGE);
+      this.contactCooldown = C.GHOST_CONTACT_COOLDOWN;
+    }
+  }
+
+  _resolveCollisions(room) {
+    for (const w of getWallRects()) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, w.x, w.y, w.w, w.h);
+      if (push) {
+        this.pos.x += push.x; this.pos.y += push.y;
+        if (Math.abs(push.x) > Math.abs(push.y)) this.vel.x *= -1; else this.vel.y *= -1;
+      }
+    }
+    for (const obs of room.obstacles) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, obs.x, obs.y, obs.w, obs.h);
+      if (push) {
+        this.pos.x += push.x; this.pos.y += push.y;
+        if (Math.abs(push.x) > Math.abs(push.y)) this.vel.x *= -1; else this.vel.y *= -1;
       }
     }
   }
@@ -249,7 +361,10 @@ class BossEnemy {
 // ── Death FX + drops ──────────────────────────────────────────────────────
 
 function _spawnDeathFX(enemy) {
-  const col = enemy.type === 'ghost' ? '#cc88ff' : enemy.type === 'boss' ? '#ff2222' : '#ff6644';
+  const col = enemy.type === 'ghost'    ? (enemy.variant === 'lunge' ? C.COL_LUNGE_GHOST : '#cc88ff')
+            : enemy.type === 'ghoul'    ? C.COL_GHOUL
+            : enemy.type === 'boss'     ? '#ff2222'
+            : '#ff6644';
   G.deathParticles.push({
     x: enemy.pos.x, y: enemy.pos.y,
     radius: enemy.radius,
@@ -311,10 +426,22 @@ function spawnBoss(room) {
   return [new BossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
 }
 
+function spawnGhouls(room) {
+  const ghouls = [];
+  const count  = Math.max(1, Math.floor(room.enemyCount / 3));
+  const z      = _spawnZone(room);
+  for (let i = 0; i < count * 15 && ghouls.length < count; i++) {
+    const x = randFloat(z.minX, z.maxX);
+    const y = randFloat(z.minY, z.maxY);
+    if (_validPos(x, y, C.GHOUL_RADIUS, room, 120)) ghouls.push(new GhoulEnemy(x, y));
+  }
+  return ghouls;
+}
+
 // Main entry point called by state.js
 function spawnEnemies(room) {
   if (room.type === 'boss')      return spawnBoss(room);
-  if (room.type === 'skeleton')  return spawnSkeletons(room);
-  if (room.type === 'mixed')     return [...spawnGhosts(room), ...spawnSkeletons(room)];
+  if (room.type === 'skeleton')  return [...spawnSkeletons(room), ...spawnGhouls(room)];
+  if (room.type === 'mixed')     return [...spawnGhosts(room), ...spawnSkeletons(room), ...spawnGhouls(room)];
   return spawnGhosts(room);
 }

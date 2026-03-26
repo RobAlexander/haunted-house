@@ -69,6 +69,7 @@ MENU → (Enter / click) → PLAYING → ROOM_TRANSITION → PLAYING
 |---|---|---|---|---|
 | Ghost | 30 | Wander/chase; contact damage | 15 | 10 |
 | Skeleton | 50 | Patrol line; fires toward player every 90f | 10/bullet | 25 |
+| Ghoul | 50 | Slow crawl; leaps at 5.5× speed when in range | 20/contact | 35 |
 | Boss | 300 | 3-phase radial burst (4/8/12 bullets) | 20/bullet | 200 |
 
 ## Architecture Notes
@@ -82,3 +83,6 @@ MENU → (Enter / click) → PLAYING → ROOM_TRANSITION → PLAYING
 - Dungeon uses constrained random-walk on an abstract `Map<"x,y", Room>` grid.
 - Boss room = deepest room; its `bossDoorsLocked` flag is cleared when the boss `takeDamage()` reaches 0 HP.
 - Treasure room pickup is activated on `enterRoom()` and consumed in `checkPickup()` each frame.
+- Lunge ghost: 30% of ghost spawns; brief 2.4× speed bursts toward player when in chase range.
+- Wide-bullet powerup: 8 shots at 3× bullet radius; spawns in a second dead-end room (65% chance); collected via `checkWidePowerup()` each frame.
+- GhoulEnemy: new class in enemy.js; crawls slowly then leaps at 5.5× speed when close; appears in skeleton and mixed rooms.

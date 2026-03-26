@@ -92,4 +92,21 @@ const C = {
 
   COL_CLEARED:     '#ffee88',
   COL_GAMEOVER:    '#ff4444',
+
+  // Ghoul enemy
+  GHOUL_HP:             50,
+  GHOUL_RADIUS:         14,
+  GHOUL_SPEED:          0.7,
+  GHOUL_LEAP_SPEED:     5.5,
+  GHOUL_LEAP_RANGE:     180,
+  GHOUL_CONTACT_DAMAGE: 20,
+  SCORE_GHOUL:          35,
+
+  // Wide bullet powerup
+  WIDE_BULLET_SHOTS:    8,
+
+  // New colors
+  COL_LUNGE_GHOST: '#ff4455',
+  COL_GHOUL:       '#7b3f1e',
+  COL_WIDE_PICKUP: '#44aaff',
 };

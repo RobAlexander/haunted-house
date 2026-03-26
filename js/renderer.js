@@ -14,6 +14,7 @@ const Renderer = {
 
     this.drawRoom(G.currentRoom);
     this.drawPickup(G.currentRoom);
+    this.drawWidePowerup(G.currentRoom);
     this.drawDrops(G.drops);
     this.drawDeathParticles(G.deathParticles);
     this.drawBullets(G.bullets);
@@ -174,6 +175,20 @@ const Renderer = {
     text('+HP', p.x, p.y + 22);
   },
 
+  drawWidePowerup(room) {
+    if (!room || !room.widePowerupActive || room.widePowerupTaken) return;
+    const p     = room.widePowerup;
+    const pulse = 0.65 + 0.35 * Math.sin(G.frame * 0.13);
+    drawingContext.globalAlpha = pulse;
+    noFill(); stroke(C.COL_WIDE_PICKUP); strokeWeight(2);
+    rect(p.x - 16, p.y - 5, 32, 10, 2);
+    strokeWeight(1);
+    rect(p.x - 22, p.y - 3, 44, 6, 1);
+    drawingContext.globalAlpha = 1;
+    noStroke(); fill(C.COL_WIDE_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
+    text('WIDE SHOT', p.x, p.y + 20);
+  },
+
   // ── Transition slide ──────────────────────────────────────────────────
 
   drawTransition() {
@@ -213,41 +228,106 @@ const Renderer = {
       if (e.type === 'ghost')    this._drawGhost(e);
       if (e.type === 'skeleton') this._drawSkeleton(e);
       if (e.type === 'boss')     this._drawBoss(e);
+      if (e.type === 'ghoul')    this._drawGhoul(e);
     }
   },
 
   _drawGhost(e) {
-    drawingContext.globalAlpha = e.flickerAlpha;
-    noFill(); stroke(C.COL_GHOST); strokeWeight(1.5);
-    circle(e.pos.x, e.pos.y, e.radius * 2);
-    circle(e.pos.x, e.pos.y, e.radius * 1.25);
-    circle(e.pos.x, e.pos.y, e.radius * 0.55);
-    strokeWeight(3);
-    point(e.pos.x - 4, e.pos.y - 3);
-    point(e.pos.x + 4, e.pos.y - 3);
+    const x = e.pos.x, y = e.pos.y, r = e.radius;
+    const d = e.deform;
+    const w = Math.sin(G.frame * 0.07 + x * 0.05) * 2.5;
+    const lx = x - r + d[1] * 3;
+    const rx = x + r + d[2] * 3;
+    const ty = y - r - 2 + d[0] * 4;
+    const col = e.variant === 'lunge' ? C.COL_LUNGE_GHOST : C.COL_GHOST;
+    const alpha = (e.variant === 'lunge' && e.lunging) ? 0.92 : e.flickerAlpha;
+
+    drawingContext.globalAlpha = alpha;
+    noFill(); stroke(col); strokeWeight(1.5);
+    beginShape();
+    curveVertex(lx,           y + 3);
+    curveVertex(lx,           y + 3);
+    curveVertex(lx,           y - 3);
+    curveVertex(x - r * 0.6, ty + r * 0.35);
+    curveVertex(x,            ty);
+    curveVertex(x + r * 0.6, ty + r * 0.35);
+    curveVertex(rx,           y - 3);
+    curveVertex(rx,           y + 3);
+    curveVertex(x + r * 0.6, y + r * 0.5 + w + d[3] * 4);
+    curveVertex(x + r * 0.2, y + r * 0.25);
+    curveVertex(x,            y + r * 0.5 - w + d[4] * 4);
+    curveVertex(x - r * 0.2, y + r * 0.25);
+    curveVertex(x - r * 0.6, y + r * 0.5 + w + d[5] * 4);
+    curveVertex(lx,           y + 3);
+    curveVertex(lx,           y + 3);
+    endShape();
+
+    noStroke(); fill(col);
+    circle(x - 4, y - 3, 4);
+    circle(x + 4, y - 3, 4);
     drawingContext.globalAlpha = 1.0;
   },
 
   _drawSkeleton(e) {
     const x = e.pos.x, y = e.pos.y;
-    const fx = Math.cos(e.facing), fy = Math.sin(e.facing);
-    stroke(C.COL_SKELETON); strokeWeight(1.5); noFill();
 
-    // Head
-    circle(x, y - 10, 12);
-    // Torso
-    line(x, y - 4, x, y + 8);
-    // Arms
-    line(x - 10, y, x + 10, y);
-    // Legs
-    line(x, y + 8, x - 7, y + 18);
-    line(x, y + 8, x + 7, y + 18);
-    // Aim indicator (gun direction)
-    stroke(C.COL_SKELETON); strokeWeight(1);
-    line(x + fx * 8, y + fy * 8, x + fx * 18, y + fy * 18);
+    // Cranium
+    noFill(); stroke(C.COL_SKELETON); strokeWeight(1.5);
+    circle(x, y - 1, 22);
 
-    // HP tick above head
-    this._drawEnemyHP(e, x, y - 22);
+    // Eye sockets: filled dark, then glowing centre
+    noStroke(); fill(C.COL_BG);
+    circle(x - 5, y - 4, 7);
+    circle(x + 5, y - 4, 7);
+
+    const glow = 0.55 + 0.45 * Math.sin(G.frame * 0.09 + x * 0.02);
+    drawingContext.globalAlpha = glow;
+    fill(C.COL_SKELETON);
+    circle(x - 5, y - 4, 3.5);
+    circle(x + 5, y - 4, 3.5);
+    drawingContext.globalAlpha = 1;
+
+    // Teeth (3 short lines along the jaw)
+    noFill(); stroke(C.COL_SKELETON); strokeWeight(1.5);
+    for (let i = -1; i <= 1; i++) {
+      line(x + i * 5, y + 6, x + i * 5, y + 10);
+    }
+
+    this._drawEnemyHP(e, x, y - 18);
+  },
+
+  _drawGhoul(e) {
+    const x = e.pos.x, y = e.pos.y, r = e.radius;
+    const p = e.crawlPhase;
+    const col = C.COL_GHOUL;
+
+    // Flattened oval body (wider than tall — low crawling profile)
+    noFill(); stroke(col); strokeWeight(1.5);
+    ellipse(x, y, r * 2.4, r * 1.5);
+
+    // Four claw-limbs, animated via crawlPhase
+    const limbAngles = [
+      -Math.PI / 4 + Math.sin(p) * 0.25,
+       Math.PI / 4 - Math.sin(p) * 0.25,
+       Math.PI - Math.PI / 4 + Math.sin(p) * 0.25,
+       Math.PI + Math.PI / 4 - Math.sin(p) * 0.25,
+    ];
+    strokeWeight(1.5);
+    for (const a of limbAngles) {
+      const ex = x + Math.cos(a) * r * 1.05;
+      const ey = y + Math.sin(a) * r * 0.7;
+      line(ex, ey, ex + Math.cos(a) * 9, ey + Math.sin(a) * 9);
+    }
+
+    // Eyes — brighter and solid when leaping
+    const eyeAlpha = e.leaping ? 1.0 : 0.65;
+    drawingContext.globalAlpha = eyeAlpha;
+    noStroke(); fill(col);
+    circle(x - 4, y - 2, 5);
+    circle(x + 4, y - 2, 5);
+    drawingContext.globalAlpha = 1;
+
+    this._drawEnemyHP(e, x, y - r - 8);
   },
 
   _drawBoss(e) {
@@ -301,15 +381,25 @@ const Renderer = {
     if (!player || !player.alive) return;
     if (player.invincibleFrames > 0 && Math.floor(G.frame / 4) % 2 === 0) return;
 
-    const px = player.pos.x, py = player.pos.y;
-    const r = player.radius, a = player.angle;
+    const px = player.pos.x, py = player.pos.y, a = player.angle;
 
-    noFill(); stroke(C.COL_PLAYER); strokeWeight(2);
-    circle(px, py, r * 2);
-    strokeWeight(3); point(px + Math.cos(a) * r, py + Math.sin(a) * r);
-    stroke(C.COL_AIM_LINE); strokeWeight(1);
-    line(px + Math.cos(a)*(r+2), py + Math.sin(a)*(r+2),
-         px + Math.cos(a)*(r+22), py + Math.sin(a)*(r+22));
+    push();
+    translate(px, py);
+    rotate(a);
+
+    noFill(); stroke(C.COL_PLAYER); strokeWeight(1.5);
+
+    // Body: ellipse wider shoulder-to-shoulder (y) than front-to-back (x)
+    ellipse(0, 0, 15, 22);
+
+    // Head: small circle at front, just overlapping the body edge
+    circle(10, 0, 8);
+
+    // Gun arm: from right shoulder forward
+    stroke(C.COL_AIM_LINE); strokeWeight(2);
+    line(2, 10, 22, 10);
+
+    pop();
   },
 
   // ── Death particles ───────────────────────────────────────────────────
@@ -555,12 +645,14 @@ const Renderer = {
 
     // Legend (bottom-left)
     const legendItems = [
-      { col: C.COL_PLAYER,   label: 'start'    },
-      { col: C.COL_GHOST,    label: 'ghost'    },
-      { col: C.COL_SKELETON, label: 'skeleton' },
-      { col: '#ff9922',      label: 'mixed'    },
-      { col: C.COL_BOSS,     label: 'boss'     },
-      { col: C.COL_PICKUP,   label: 'treasure' },
+      { col: C.COL_PLAYER,      label: 'start'    },
+      { col: C.COL_GHOST,       label: 'ghost'    },
+      { col: C.COL_LUNGE_GHOST, label: 'lunge ghost' },
+      { col: C.COL_SKELETON,    label: 'skeleton' },
+      { col: C.COL_GHOUL,       label: 'ghoul'    },
+      { col: '#ff9922',         label: 'mixed'    },
+      { col: C.COL_BOSS,        label: 'boss'     },
+      { col: C.COL_PICKUP,      label: 'treasure' },
     ];
     const lx = 14, ly = C.HEIGHT - 14 - legendItems.length * 13;
     noStroke(); fill(C.COL_HUD_TITLE); textSize(9); textAlign(LEFT, TOP); textFont('monospace');
