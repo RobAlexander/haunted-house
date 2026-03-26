@@ -543,7 +543,7 @@ const Renderer = {
     }
 
     noStroke(); fill(C.COL_HUD_TEXT); textSize(9); textAlign(LEFT, BOTTOM);
-    text('R: new dungeon   M: map', 20, C.HEIGHT - 6);
+    text('M: map', 20, C.HEIGHT - 6);
   },
 
   // ── Overlays ──────────────────────────────────────────────────────────
@@ -568,7 +568,7 @@ const Renderer = {
     fill(C.COL_HUD_TEXT); textSize(18);
     text(`SCORE: ${G.score}`, C.WIDTH / 2, C.HEIGHT / 2 + 8);
     textSize(14);
-    text('Press  R  to try again', C.WIDTH / 2, C.HEIGHT / 2 + 36);
+    text('ESC  to return to menu', C.WIDTH / 2, C.HEIGHT / 2 + 36);
   },
 
   // ── Map overlay ───────────────────────────────────────────────────────
@@ -718,6 +718,6 @@ const Renderer = {
     fill(C.COL_WIN); textSize(14);
     text('Press  N  for next floor  (harder)', C.WIDTH / 2, C.HEIGHT / 2 + 46);
     fill(C.COL_HUD_TEXT); textSize(12);
-    text('Press  R  to start over from floor 1', C.WIDTH / 2, C.HEIGHT / 2 + 68);
+    text('ESC  to return to menu', C.WIDTH / 2, C.HEIGHT / 2 + 68);
   },
 };

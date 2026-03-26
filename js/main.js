@@ -93,8 +93,6 @@ function keyPressed() {
 
   if (key === 'Enter' && G.state === STATES.MENU) startGame();
 
-  if (key.toLowerCase() === 'r') { G.floor = 1; AudioEngine.stopMusic(); startGame(); }
-
   if (key.toLowerCase() === 'n' && G.state === STATES.WIN) nextFloor();
 
   if (key === 'Escape' && G.state !== STATES.MENU) {

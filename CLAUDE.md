@@ -11,7 +11,6 @@ Open `index.html` directly in any modern browser to play.
 | Mouse | Aim |
 | Left click (hold) | Shoot |
 | M | Toggle map (pauses game; only visited rooms shown) |
-| R | Restart / New dungeon (floor 1) |
 | N | Next floor (from win screen) |
 | Esc | Close map / Return to title screen |
 | Enter | Start game from menu |
