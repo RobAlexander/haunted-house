@@ -23,6 +23,7 @@ const Renderer = {
     this.drawHUD();
     this.drawVignette(G.player);
 
+    if (G.mapOpen)                    { this.drawMap(); return; }
     if (G.state === STATES.GAME_OVER) this.drawGameOver();
     if (G.state === STATES.WIN)       this.drawWin();
     if (G.escConfirm)                 this.drawEscConfirm();
@@ -42,7 +43,7 @@ const Renderer = {
     text('ENTER  or  CLICK  to begin', C.WIDTH / 2, C.HEIGHT / 2 + 10);
 
     fill(C.COL_HUD_TITLE); textSize(11);
-    text('WASD  move     MOUSE  aim     CLICK  shoot', C.WIDTH / 2, C.HEIGHT / 2 + 50);
+    text('WASD  move     MOUSE  aim     CLICK  shoot     M  map', C.WIDTH / 2, C.HEIGHT / 2 + 50);
     text('Find the boss room and destroy the haunting', C.WIDTH / 2, C.HEIGHT / 2 + 70);
   },
 
@@ -427,7 +428,7 @@ const Renderer = {
     }
 
     noStroke(); fill(C.COL_HUD_TEXT); textSize(9); textAlign(LEFT, BOTTOM);
-    text('R: new dungeon', 20, C.HEIGHT - 6);
+    text('R: new dungeon   M: map', 20, C.HEIGHT - 6);
   },
 
   // ── Overlays ──────────────────────────────────────────────────────────
@@ -453,6 +454,124 @@ const Renderer = {
     text(`SCORE: ${G.score}`, C.WIDTH / 2, C.HEIGHT / 2 + 8);
     textSize(14);
     text('Press  R  to try again', C.WIDTH / 2, C.HEIGHT / 2 + 36);
+  },
+
+  // ── Map overlay ───────────────────────────────────────────────────────
+
+  drawMap() {
+    if (!G.dungeon) return;
+    const visited = [...G.dungeon.grid.values()].filter(r => r.visited);
+    if (!visited.length) return;
+
+    // Dark overlay
+    noStroke(); fill(0, 0, 0, 215);
+    rect(0, 0, C.WIDTH, C.HEIGHT);
+
+    // Title
+    noStroke(); fill(C.COL_HUD_TITLE);
+    textFont('monospace'); textSize(14); textAlign(CENTER, TOP);
+    text('[ MAP ]', C.WIDTH / 2, 16);
+    fill(C.COL_HUD_TEXT); textSize(10);
+    text('M  or  ESC  to close', C.WIDTH / 2, 36);
+
+    // Grid extents
+    const gxs = visited.map(r => r.gx), gys = visited.map(r => r.gy);
+    const minGx = Math.min(...gxs), maxGx = Math.max(...gxs);
+    const minGy = Math.min(...gys), maxGy = Math.max(...gys);
+
+    const cellW = 38, cellH = 28, stepX = 56, stepY = 46;
+
+    // Center map in available area (below title)
+    const mapAreaMidY = (55 + C.HEIGHT - 20) / 2;
+    const ox = C.WIDTH  / 2 - ((minGx + maxGx) / 2 * stepX + cellW / 2);
+    const oy = mapAreaMidY   - ((minGy + maxGy) / 2 * stepY + cellH / 2);
+
+    const TYPE_COL = {
+      start:    C.COL_PLAYER,
+      ghost:    C.COL_GHOST,
+      skeleton: C.COL_SKELETON,
+      mixed:    '#ff9922',
+      boss:     C.COL_BOSS,
+      treasure: C.COL_PICKUP,
+    };
+
+    // Corridors — draw only south and east to avoid duplicates
+    for (const room of visited) {
+      const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
+      if (room.connections.south && room.connections.south.visited) {
+        const nry = oy + room.connections.south.gy * stepY;
+        stroke('#3a3a5c'); strokeWeight(5);
+        line(rx + cellW / 2, ry + cellH, rx + cellW / 2, nry);
+      }
+      if (room.connections.east && room.connections.east.visited) {
+        const nrx = ox + room.connections.east.gx * stepX;
+        stroke('#3a3a5c'); strokeWeight(5);
+        line(rx + cellW, ry + cellH / 2, nrx, ry + cellH / 2);
+      }
+    }
+
+    // Room boxes
+    for (const room of visited) {
+      const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
+      const isCurrent = room === G.currentRoom;
+      const treasureTaken = room.type === 'treasure' && room.pickupTaken;
+      const col = treasureTaken ? C.COL_DOOR_OPEN : (TYPE_COL[room.type] || C.COL_HUD_TEXT);
+
+      // Background fill
+      noStroke(); fill('#12121c');
+      rect(rx, ry, cellW, cellH, 3);
+      if (isCurrent) {
+        drawingContext.globalAlpha = 0.28;
+        fill(col);
+        rect(rx, ry, cellW, cellH, 3);
+        drawingContext.globalAlpha = 1;
+      }
+
+      // Border
+      noFill(); stroke(col);
+      strokeWeight(isCurrent ? 2.5 : 1.5);
+      rect(rx, ry, cellW, cellH, 3);
+
+      // Type label (center of cell)
+      noStroke();
+      const label = room.type === 'start'              ? 'START'
+                  : room.type === 'boss'               ? 'BOSS'
+                  : room.type === 'treasure' && !treasureTaken ? 'TRSR'
+                  : room.cleared                       ? ''
+                  :                                      '...';
+      fill(room.cleared || room.type === 'start' ? col : C.COL_DOOR_CLOSED);
+      textFont('monospace'); textSize(8); textAlign(CENTER, CENTER);
+      text(label, rx + cellW / 2, ry + cellH / 2);
+
+      // Pulsing player dot on current room
+      if (isCurrent) {
+        const pulse = 0.55 + 0.45 * Math.sin(G.frame * 0.15);
+        drawingContext.globalAlpha = pulse;
+        noStroke(); fill('#ffffff');
+        circle(rx + 6, ry + 6, 4);
+        drawingContext.globalAlpha = 1;
+      }
+    }
+
+    // Legend (bottom-left)
+    const legendItems = [
+      { col: C.COL_PLAYER,   label: 'start'    },
+      { col: C.COL_GHOST,    label: 'ghost'    },
+      { col: C.COL_SKELETON, label: 'skeleton' },
+      { col: '#ff9922',      label: 'mixed'    },
+      { col: C.COL_BOSS,     label: 'boss'     },
+      { col: C.COL_PICKUP,   label: 'treasure' },
+    ];
+    const lx = 14, ly = C.HEIGHT - 14 - legendItems.length * 13;
+    noStroke(); fill(C.COL_HUD_TITLE); textSize(9); textAlign(LEFT, TOP); textFont('monospace');
+    text('LEGEND', lx, ly);
+    for (let i = 0; i < legendItems.length; i++) {
+      const { col, label } = legendItems[i];
+      const y = ly + 14 + i * 12;
+      noStroke(); fill(col); rect(lx, y, 7, 7, 1);
+      fill(C.COL_HUD_TEXT); textSize(9); textAlign(LEFT, CENTER);
+      text(label, lx + 12, y + 3);
+    }
   },
 
   drawWin() {

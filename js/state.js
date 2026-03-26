@@ -21,6 +21,7 @@ const G = {
   deathParticles: [],
   drops:          [],
   escConfirm:     false,
+  mapOpen:        false,
 };
 
 // ── Game lifecycle ────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ function startGame() {
   G.clearedFlash   = 0;
   G.deathParticles = [];
   G.drops          = [];
+  G.mapOpen        = false;
   G.dungeon        = new DungeonGraph();
   G.bullets        = new BulletPool();
   G.player         = new Player(C.WIDTH / 2, C.HEIGHT / 2);

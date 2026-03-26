@@ -31,38 +31,41 @@ function draw() {
 
   // ── Active gameplay ──────────────────────────────────────────────────
 
-  G.player.update(keys, mouseX, mouseY, G.currentRoom);
-  if (mouseDown) G.player.shoot(G.bullets);
+  if (!G.mapOpen) {
+    G.player.update(keys, mouseX, mouseY, G.currentRoom);
+    if (mouseDown) G.player.shoot(G.bullets);
 
-  for (const e of G.enemies) e.update(G.player, G.currentRoom);
+    for (const e of G.enemies) e.update(G.player, G.currentRoom);
 
-  // Score kills before bullet update removes dead enemies
-  for (const e of G.enemies) {
-    if (!e.alive && !e._scored) { G.score += e.scoreValue || 0; e._scored = true; }
-  }
-
-  G.bullets.update(G.player, G.enemies, G.currentRoom);
-
-  // Enemy bullets also damage the player
-  for (const b of G.bullets.pool) {
-    if (!b.active || b.owner !== 'enemy') continue;
-    if (circleCollide(b.pos.x, b.pos.y, b.radius, G.player.pos.x, G.player.pos.y, G.player.radius)) {
-      G.player.takeDamage(b.damage);
-      b.deactivate();
+    // Score kills before bullet update removes dead enemies
+    for (const e of G.enemies) {
+      if (!e.alive && !e._scored) { G.score += e.scoreValue || 0; e._scored = true; }
     }
-  }
 
-  checkRoomCleared();
-  checkRoomExit();
-  checkPickup();
-  checkDropPickup();
-  tickParticles();
+    G.bullets.update(G.player, G.enemies, G.currentRoom);
 
-  if (G.clearedFlash > 0) G.clearedFlash--;
-  if (!G.player.alive && G.state !== STATES.GAME_OVER) {
-    G.state = STATES.GAME_OVER;
-    AudioEngine.playSFX('game_over');
-    AudioEngine.stopMusic();
+    // Enemy bullets also damage the player
+    for (const b of G.bullets.pool) {
+      if (!b.active || b.owner !== 'enemy') continue;
+      if (circleCollide(b.pos.x, b.pos.y, b.radius, G.player.pos.x, G.player.pos.y, G.player.radius)) {
+        G.player.takeDamage(b.damage);
+        b.deactivate();
+      }
+    }
+
+    checkRoomCleared();
+    checkRoomExit();
+    checkPickup();
+    checkDropPickup();
+    tickParticles();
+
+    if (G.clearedFlash > 0) G.clearedFlash--;
+    if (!G.player.alive && G.state !== STATES.GAME_OVER) {
+      G.mapOpen = false;
+      G.state = STATES.GAME_OVER;
+      AudioEngine.playSFX('game_over');
+      AudioEngine.stopMusic();
+    }
   }
 
   Renderer.draw();
@@ -94,6 +97,7 @@ function keyPressed() {
   if (key.toLowerCase() === 'n' && G.state === STATES.WIN) nextFloor();
 
   if (key === 'Escape' && G.state !== STATES.MENU) {
+    if (G.mapOpen) { G.mapOpen = false; return false; }
     if (G.escConfirm) {
       G.escConfirm = false;
       G.floor = 1;
@@ -107,6 +111,11 @@ function keyPressed() {
 
   // Any other key cancels the esc confirmation
   if (G.escConfirm) { G.escConfirm = false; return false; }
+
+  if (key.toLowerCase() === 'm' && G.state === STATES.PLAYING) {
+    G.mapOpen = !G.mapOpen;
+    return false;
+  }
 
   return false;
 }

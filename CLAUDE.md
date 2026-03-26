@@ -10,9 +10,10 @@ Open `index.html` directly in any modern browser to play.
 | WASD / Arrow keys | Move |
 | Mouse | Aim |
 | Left click (hold) | Shoot |
+| M | Toggle map (pauses game; only visited rooms shown) |
 | R | Restart / New dungeon (floor 1) |
 | N | Next floor (from win screen) |
-| Esc | Return to title screen |
+| Esc | Close map / Return to title screen |
 | Enter | Start game from menu |
 
 ## Stages
@@ -28,6 +29,7 @@ Open `index.html` directly in any modern browser to play.
 ## File Map
 
 ```
+p5.min.js         — p5.js 1.9.4 vendored locally (no CDN dependency)
 js/constants.js   — all magic numbers and colour palette
 js/utils.js       — collision math, vector helpers, getWallRects()
 js/state.js       — global G object, state machine, enterRoom(), transitions
