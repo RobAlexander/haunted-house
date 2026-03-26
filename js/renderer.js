@@ -513,6 +513,18 @@ const Renderer = {
     noStroke(); fill(C.COL_HUD_TEXT); textSize(10); textAlign(LEFT, TOP);
     text(`HP  ${p.hp} / ${p.maxHp}`, bx, by + bh + 3);
 
+    // Wide-shot ammo counter
+    if (p.wideShots > 0) {
+      const ax = bx, ay = by + bh + 18;
+      noStroke(); fill(C.COL_WIDE_PICKUP); textSize(9); textAlign(LEFT, TOP);
+      text('WIDE', ax, ay);
+      const bulW = 13, bulH = 6, gap = 3, startX = ax + 32;
+      for (let i = 0; i < p.wideShots; i++) {
+        noFill(); stroke(C.COL_WIDE_PICKUP); strokeWeight(1.5);
+        rect(startX + i * (bulW + gap), ay, bulW, bulH, 1);
+      }
+    }
+
     // Room info (top right)
     const room = G.currentRoom;
     textAlign(RIGHT, TOP); textSize(11);
