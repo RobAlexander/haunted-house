@@ -198,7 +198,7 @@ const AudioEngine = (() => {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(160, now);
     osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
-    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.setValueAtTime(0.55, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
     osc.connect(gain);
     gain.connect(master);

@@ -22,7 +22,7 @@ class GhostEnemy {
     this.variant      = Math.random() < 0.3 ? 'lunge' : 'normal';
     this.lunging      = false;
     this.lungeDuration = 0;
-    this.lungeTimer   = randInt(120, 250);
+    this.lungeTimer   = randInt(60, 140);
   }
 
   update(player, room) {
@@ -38,7 +38,7 @@ class GhostEnemy {
       this.lungeDuration--;
       if (this.lungeDuration <= 0) {
         this.lunging   = false;
-        this.lungeTimer = randInt(150, 300);
+        this.lungeTimer = randInt(80, 160);
       }
     } else if (dist < C.GHOST_CHASE_DIST) {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
@@ -118,7 +118,7 @@ class GhoulEnemy {
     this.contactCooldown = 0;
     this.leaping         = false;
     this.leapDuration    = 0;
-    this.leapTimer       = randInt(80, 200);
+    this.leapTimer       = randInt(40, 110);
     this.crawlPhase      = randFloat(0, Math.PI * 2);
   }
 
@@ -133,7 +133,7 @@ class GhoulEnemy {
       this.leapDuration--;
       if (this.leapDuration <= 0) {
         this.leaping   = false;
-        this.leapTimer = randInt(120, 240);
+        this.leapTimer = randInt(60, 140);
       }
     } else {
       // Slow crawl toward player
