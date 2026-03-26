@@ -29,6 +29,7 @@ Open `index.html` directly in any modern browser to play.
 
 ```
 p5.min.js         — p5.js 1.9.4 vendored locally (no CDN dependency)
+creepster.ttf     — Creepster horror font (Google Fonts, vendored locally)
 js/constants.js   — all magic numbers and colour palette
 js/utils.js       — collision math, vector helpers, getWallRects()
 js/state.js       — global G object, state machine, enterRoom(), transitions

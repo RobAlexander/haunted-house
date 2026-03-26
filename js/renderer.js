@@ -37,9 +37,10 @@ const Renderer = {
     const flicker = Math.sin(G.frame * 0.08) > 0.7;
     noStroke();
     fill(flicker ? '#ff88bb' : C.COL_GAMEOVER);
-    textFont('monospace'); textSize(56); textAlign(CENTER, CENTER);
-    text('HAUNTED HOUSE', C.WIDTH / 2, C.HEIGHT / 2 - 70);
+    textFont('Creepster'); textSize(80); textAlign(CENTER, CENTER);
+    text('Haunted House', C.WIDTH / 2, C.HEIGHT / 2 - 70);
 
+    textFont('monospace');
     fill(C.COL_HUD_TEXT); textSize(15);
     text('ENTER  or  CLICK  to begin', C.WIDTH / 2, C.HEIGHT / 2 + 10);
 
