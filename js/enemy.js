@@ -46,7 +46,7 @@ class GhostEnemy {
       this.vel.y = n.y * C.GHOST_SPEED;
       if (this.variant === 'lunge') {
         this.lungeTimer--;
-        if (this.lungeTimer <= 0) { this.lunging = true; this.lungeDuration = 22; }
+        if (this.lungeTimer <= 0) { this.lunging = true; this.lungeDuration = 32; }
       }
     } else {
       this.wanderTimer--;

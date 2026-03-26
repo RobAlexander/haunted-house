@@ -193,17 +193,33 @@ const AudioEngine = (() => {
 
   // Sine frequency glide downward
   function _sfxHit(now) {
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(160, now);
-    osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
-    gain.gain.setValueAtTime(0.55, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
-    osc.connect(gain);
-    gain.connect(master);
-    osc.start(now);
-    osc.stop(now + 0.16);
+    // Layer 1: sawtooth sting — harsh buzzy frequency drop
+    const osc   = ctx.createOscillator();
+    const oGain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(420, now);
+    osc.frequency.exponentialRampToValueAtTime(65, now + 0.09);
+    oGain.gain.setValueAtTime(0.52, now);
+    oGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    osc.connect(oGain); oGain.connect(master);
+    osc.start(now); osc.stop(now + 0.13);
+
+    // Layer 2: noise crack — short bandpass burst for impact thud
+    const bufLen = Math.ceil(ctx.sampleRate * 0.09);
+    const buf    = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data   = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise   = ctx.createBufferSource();
+    noise.buffer  = buf;
+    const nFilt   = ctx.createBiquadFilter();
+    nFilt.type    = 'bandpass';
+    nFilt.frequency.value = 950;
+    nFilt.Q.value = 1.8;
+    const nGain   = ctx.createGain();
+    nGain.gain.setValueAtTime(0.5, now);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+    noise.connect(nFilt); nFilt.connect(nGain); nGain.connect(master);
+    noise.start(now); noise.stop(now + 0.09);
   }
 
   // Descending sine + noise burst
