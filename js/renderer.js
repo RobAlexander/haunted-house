@@ -44,10 +44,25 @@ const Renderer = {
   // ── Menu ──────────────────────────────────────────────────────────────
 
   drawMenu() {
-    // Glitchy title flicker
+    // Title colour: rare signal-glitch states that occasionally intrude.
+    // Probabilities are per-frame trigger rates at 60fps; each glitch holds
+    // for a short burst of frames before snapping back to normal.
+    if (!this._titleGlitch) this._titleGlitch = { col: null, timer: 0 };
+    const tg = this._titleGlitch;
+    if (tg.timer > 0) {
+      tg.timer--;
+    } else {
+      const r = Math.random();
+      if      (r < 0.000035) { tg.col = '#050505'; tg.timer = randInt(2, 5);  } // black       ~once/8min
+      else if (r < 0.00013)  { tg.col = '#1c1c1c'; tg.timer = randInt(3, 9);  } // near-black  ~once/3min
+      else if (r < 0.00042)  { tg.col = '#55bb77'; tg.timer = randInt(3, 10); } // green       ~once/min
+      else if (r < 0.001)    { tg.col = '#909090'; tg.timer = randInt(4, 15); } // grey        ~2×/min
+      else                   { tg.col = null; }
+    }
     const flicker = Math.sin(G.frame * 0.08) > 0.7;
+    const titleCol = tg.col || (flicker ? '#ff88bb' : C.COL_GAMEOVER);
     noStroke();
-    fill(flicker ? '#ff88bb' : C.COL_GAMEOVER);
+    fill(titleCol);
     textFont('Creepster'); textSize(80); textAlign(CENTER, CENTER);
     text('Haunted House', C.WIDTH / 2, C.HEIGHT / 2 - 70);
 
