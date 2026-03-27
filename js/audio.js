@@ -466,9 +466,10 @@ const AudioEngine = (() => {
     osc.frequency.setValueAtTime(200, now);
     osc.frequency.linearRampToValueAtTime(290, now + 0.25);
     osc.frequency.linearRampToValueAtTime(230, now + 0.65);
+    const v = C.SFX_VOL_GHOST_LUNGE;
     g.gain.setValueAtTime(0.001, now);
-    g.gain.linearRampToValueAtTime(0.20, now + 0.18);
-    g.gain.linearRampToValueAtTime(0.15, now + 0.45);
+    g.gain.linearRampToValueAtTime(0.20 * v, now + 0.18);
+    g.gain.linearRampToValueAtTime(0.15 * v, now + 0.45);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
     osc.connect(g); g.connect(reverb);
     osc.start(now); osc.stop(now + 0.8);
@@ -486,7 +487,7 @@ const AudioEngine = (() => {
     flt.Q.value = 1.2;
     const ng = ctx.createGain();
     ng.gain.setValueAtTime(0.001, now);
-    ng.gain.linearRampToValueAtTime(0.08, now + 0.2);
+    ng.gain.linearRampToValueAtTime(0.08 * v, now + 0.2);
     ng.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
     noise.connect(flt); flt.connect(ng); ng.connect(reverb);
     noise.start(now); noise.stop(now + 0.7);
@@ -498,7 +499,7 @@ const AudioEngine = (() => {
     osc2.frequency.setValueAtTime(580, now + 0.05);
     osc2.frequency.linearRampToValueAtTime(460, now + 0.6);
     g2.gain.setValueAtTime(0.001, now + 0.05);
-    g2.gain.linearRampToValueAtTime(0.04, now + 0.25);
+    g2.gain.linearRampToValueAtTime(0.04 * v, now + 0.25);
     g2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
     osc2.connect(g2); g2.connect(reverb);
     osc2.start(now + 0.05); osc2.stop(now + 0.7);

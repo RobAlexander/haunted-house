@@ -159,11 +159,8 @@ class DungeonGraph {
 
     // Assign RAG symbols (R, A, G) to 3 eligible rooms.
     // Excluded: start, boss, the room directly adjacent to boss, treasure rooms.
-    const bossNeighbour = [...this.grid.values()].find(r =>
-      r !== bossRoom && Object.values(r.connections).includes(bossRoom)
-    );
     const symbolPool = nonStart.filter(r =>
-      r !== bossRoom && r !== bossNeighbour && r.type !== 'treasure'
+      r !== bossRoom && r.type !== 'treasure'
     );
     // Fisher-Yates shuffle
     for (let i = symbolPool.length - 1; i > 0; i--) {
