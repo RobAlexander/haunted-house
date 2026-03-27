@@ -77,6 +77,7 @@ function draw() {
       }
     }
 
+    checkInvulnerableRepulsion();
     checkEliteShield();
     checkRagSymbols();
     checkRoomCleared();
@@ -103,7 +104,8 @@ function draw() {
 function mousePressed() {
   if (_justFocused) { _justFocused = false; return false; }
   AudioEngine.init();
-  if (G.state === STATES.MENU) { startGame(); return false; }
+  if (G.state === STATES.MENU)   { startGame(); return false; }
+  if (G.state === STATES.PAUSED) { G.state = STATES.PLAYING; return false; }
   mouseDown = true;
   if (G.state === STATES.PLAYING) G.player.shoot(G.bullets);
   return false;
@@ -243,6 +245,12 @@ function keyPressed() {
     } else if (key.length === 1) {
       G.devConsole.input += key;
     }
+    return false;
+  }
+
+  // Any key (except Esc and backtick) dismisses pause
+  if (G.state === STATES.PAUSED && key !== 'Escape' && key !== '`') {
+    G.state = STATES.PLAYING;
     return false;
   }
 

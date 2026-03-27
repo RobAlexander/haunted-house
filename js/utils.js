@@ -69,11 +69,10 @@ function getWallRects() {
   const stairwell = room ? room.stairwell : null;
   const rects = [];
 
-  // Returns true if this direction connects to the boss room and RAG symbols aren't all collected
+  // Returns true if this direction connects to the boss room and symbols aren't all collected
   function _ragLocked(dir) {
     if (!conn[dir] || !G.dungeon || conn[dir] !== G.dungeon.bossRoom) return false;
-    const rc = G.ragCollected;
-    return !(rc && rc.R && rc.A && rc.G);
+    return !ragAllCollected();
   }
 
   function addWallH(y, dir) {
@@ -103,4 +102,57 @@ function getWallRects() {
   addWallV(W - P,   'east');
 
   return rects;
+}
+
+// ── Rune-stick symbol glyphs ───────────────────────────────────────────────
+// Each glyph is an array of [x1,y1, x2,y2] segments in normalised ±1 space.
+// Multiply by SYMBOL_SCALE (18px) when drawing.
+const SYMBOL_GLYPHS = {
+  'R': [[-0.1,-1,-0.1, 1], [-0.1,-0.3, 0.75,-1 ], [-0.1,-0.3, 0.8, 0.5 ]],
+  'A': [[ 0  ,-1,-0.7, 1], [ 0  ,-1,   0.7, 1   ], [-0.35, 0.1, 0.35, 0.1]],
+  'G': [[ 0.6,-1,-0.6,-1], [-0.6,-1  ,-0.6, 1   ], [-0.6, 1, 0.6, 1      ], [0.6, 1, 0.6, 0.05], [0.6, 0.05, 0.05, 0.05]],
+  'O': [[ 0  ,-1, 0.7, 0], [ 0.7, 0,   0  , 1   ], [ 0  , 1,-0.7, 0      ], [-0.7, 0, 0, -1   ]],
+  'T': [[-0.7,-1, 0.7,-1], [ 0  ,-1,   0  , 1   ]],
+  'N': [[-0.5,-1,-0.5, 1], [ 0.5,-1,   0.5, 1   ], [-0.5,-0.8, 0.5, 0.8  ]],
+  'V': [[-0.7,-1, 0  , 1], [ 0.7,-1,   0  , 1   ]],
+  'E': [[-0.5,-1,-0.5, 1], [-0.5,-1,   0.6,-1   ], [-0.5, 0, 0.4, 0      ], [-0.5, 1, 0.6, 1  ]],
+  'M': [[-0.6,-1,-0.6, 1], [ 0.6,-1,   0.6, 1   ], [-0.6,-1, 0  ,-0.1   ], [ 0.6,-1, 0  ,-0.1]],
+  'S': [[ 0.5,-1,-0.5, 0], [-0.5, 0,   0.5, 1   ]],
+  'B': [[-0.4,-1,-0.4, 1], [-0.4,-1,   0.6,-0.35], [ 0.6,-0.35,-0.4, 0.1 ], [-0.4, 0.1, 0.6, 0.55], [0.6, 0.55,-0.4, 1]],
+  'K': [[-0.4,-1,-0.4, 1], [-0.4, 0,   0.65,-1  ], [-0.4, 0,   0.65, 1  ]],
+  'H': [[-0.5,-1,-0.5, 1], [ 0.5,-1,   0.5, 1   ], [-0.5, 0,   0.5, 0   ]],
+  'I': [[ 0  ,-1, 0  , 1], [-0.3,-1,   0.3,-1   ], [-0.3, 1,   0.3, 1   ]],
+  'L': [[-0.2,-1,-0.2, 0.65], [-0.2, 0.65, 0.65, 1]],
+  'P': [[-0.4,-1,-0.4, 1], [-0.4,-1,   0.65,-0.3], [ 0.65,-0.3,-0.4, 0.3]],
+};
+
+// Fixed symbol sets for floors 1–4; floor 5+ uses seeded procedural selection.
+const _NAMED_SYMBOL_SETS = [
+  ['R','A','G'],
+  ['O','T','R'],
+  ['N','V'],
+  ['N','T','E','M'],
+];
+
+function _symbolRng(seed) {
+  // Mulberry32 seeded PRNG → returns values in [0,1)
+  let s = seed >>> 0;
+  return function () {
+    s += 0x6D2B79F5;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getFloorSymbols(floor) {
+  if (floor <= 4) return _NAMED_SYMBOL_SETS[floor - 1];
+  const rng  = _symbolRng((floor * 2654435761) >>> 0);
+  const pool = Object.keys(SYMBOL_GLYPHS).slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const count = 2 + Math.floor(rng() * 3); // 2, 3, or 4
+  return pool.slice(0, count);
 }

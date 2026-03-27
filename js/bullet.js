@@ -76,7 +76,14 @@ class BulletPool {
                         : 0;
           if (shieldR > 0) {
             if (circleCollide(b.pos.x, b.pos.y, b.radius, e.pos.x, e.pos.y, shieldR)) {
-              _spawnShieldSparks(b.pos.x, b.pos.y, b.vel.x, b.vel.y);
+              // Redirect damage to any enemy currently inside the shield
+              const proxies = enemies.filter(o => o !== e && o.alive && !o.shielded &&
+                circleCollide(o.pos.x, o.pos.y, o.radius, e.pos.x, e.pos.y, shieldR));
+              if (proxies.length > 0) {
+                proxies[Math.floor(Math.random() * proxies.length)].takeDamage(b.damage);
+              } else {
+                _spawnShieldSparks(b.pos.x, b.pos.y, b.vel.x, b.vel.y);
+              }
               b.deactivate();
               break;
             }

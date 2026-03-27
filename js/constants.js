@@ -30,8 +30,8 @@ const C = {
   GHOST_COUNT:            5,   // fallback; rooms use depth-scaled counts
  
   // Lunge ghost cooldown between lunges (frames). Lower = more frequent.
-  GHOST_LUNGE_COOLDOWN_MIN: 80,
-  GHOST_LUNGE_COOLDOWN_MAX: 160,
+  GHOST_LUNGE_COOLDOWN_MIN: 60,
+  GHOST_LUNGE_COOLDOWN_MAX: 140,
 
   // Skull enemy
   SKULL_SPEED:         2,
@@ -132,7 +132,7 @@ const C = {
   SFX_VOL_SHOOT:       0.05,
   SFX_VOL_HIT:         0.52,
   SFX_VOL_DEATH:       0.2,
-  SFX_VOL_GHOST_LUNGE: 2.0,   // scale factor for red ghost lunge "hoooo" (1.0 = as designed)
+  SFX_VOL_GHOST_LUNGE: 3.0,   // scale factor for red ghost lunge "hoooo" (1.0 = as designed)
 
   // New colors
   COL_LUNGE_GHOST: '#ff4455',

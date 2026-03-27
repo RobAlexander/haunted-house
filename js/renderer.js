@@ -83,6 +83,33 @@ const Renderer = {
     if (!room) return;
     const P = C.ROOM_PADDING, W = C.WIDTH, H = C.HEIGHT;
 
+    // Start room trapdoor — player emerged from here
+    if (room.type === 'start') {
+      const tx = W/2, ty = H/2, tw = 72, th = 56;
+      const x0 = tx - tw/2, y0 = ty - th/2;
+      // Floor panel
+      fill('#18110a'); stroke('#7a5a32'); strokeWeight(1.5);
+      rect(x0, y0, tw, th);
+      // Plank dividers
+      stroke('#7a5a32'); strokeWeight(1);
+      line(x0+1, y0 + th/3,   x0+tw-1, y0 + th/3);
+      line(x0+1, y0 + 2*th/3, x0+tw-1, y0 + 2*th/3);
+      // Wood grain — short horizontal nicks on each plank
+      strokeWeight(0.5);
+      const grainY = [th/6, th/2, 5*th/6];
+      for (const gy of grainY) {
+        line(x0+8,    y0+gy-2, x0+20,    y0+gy-2);
+        line(x0+tw-20, y0+gy+2, x0+tw-9, y0+gy+2);
+      }
+      // Hinges — two small brackets on top edge
+      fill('#2a1e10'); stroke('#aa7840'); strokeWeight(1);
+      rect(x0+10, y0-4, 11, 8, 1);
+      rect(x0+tw-21, y0-4, 11, 8, 1);
+      // Pull ring at bottom centre
+      noFill(); stroke('#7a5a32'); strokeWeight(1.5);
+      ellipse(tx, y0+th-9, 14, 9);
+    }
+
     // Boss room tinted floor
     if (room.type === 'boss') {
       noStroke(); fill(C.COL_BOSS_ROOM);
@@ -148,10 +175,16 @@ const Renderer = {
     }
 
     if (!room.cleared) {
-      // Room not yet cleared — door is closed
-      stroke(C.COL_DOOR_CLOSED); strokeWeight(2);
+      // Room not yet cleared — door is closed; boss connections shown in boss colour
+      const isBoss = connection.type === 'boss';
+      stroke(isBoss ? C.COL_BOSS : C.COL_DOOR_CLOSED); strokeWeight(2);
       if (isHoriz) line(mid - DH, y1, mid + DH, y1);
       else         line(x1, mid - DH, x1, mid + DH);
+      if (isBoss) {
+        noStroke(); fill(C.COL_BOSS); textSize(9); textAlign(CENTER, CENTER);
+        if (isHoriz) text('BOSS', mid, y1 + tickDy * 2.5);
+        else         text('BOSS', x1 + tickDx * 2.5, mid);
+      }
     } else if (connection.type === 'boss' && !ragAllCollected()) {
       // Boss door — symbol-locked. Show as sealed with boss colour + padlock + RAG status.
       stroke(C.COL_BOSS); strokeWeight(2);
@@ -162,13 +195,13 @@ const Renderer = {
       if (isHoriz) {
         text('BOSS', mid, y1 + tickDy * 2.5);
         const rc = G.ragCollected;
-        const sym = ['R','A','G'].map(l => rc[l] ? l : '·').join(' ');
+        const sym = getFloorSymbols(G.floor).map(l => rc[l] ? l : '·').join(' ');
         fill(C.COL_RAG_SYMBOL); textSize(8);
         text(sym, mid, y1 + tickDy * 5.5);
       } else {
         text('BOSS', x1 + tickDx * 2.5, mid);
         const rc = G.ragCollected;
-        const sym = ['R','A','G'].map(l => rc[l] ? l : '·').join(' ');
+        const sym = getFloorSymbols(G.floor).map(l => rc[l] ? l : '·').join(' ');
         fill(C.COL_RAG_SYMBOL); textSize(8);
         text(sym, x1 + tickDx * 2.5, mid + tickDy * 9 + (tickDx > 0 ? 12 : -12));
       }
@@ -263,34 +296,34 @@ const Renderer = {
 
   drawRagSymbol(room) {
     if (!room || !room.ragSymbol || room.ragSymbol.collected) return;
-    const s     = room.ragSymbol;
+    const s    = room.ragSymbol;
+    const SC   = 18;
+    const segs = SYMBOL_GLYPHS[s.letter];
     const pulse = 0.72 + 0.28 * Math.sin(G.frame * 0.07);
 
-    textFont('monospace'); textSize(46); textAlign(CENTER, CENTER);
+    noFill();
 
-    // Scratchy ghost copies — slightly offset, low alpha
-    drawingContext.globalAlpha = 0.22 * pulse;
-    noStroke(); fill(C.COL_RAG_SYMBOL);
-    for (const [jx, jy] of s.jitter) {
-      text(s.letter, s.x + jx, s.y + jy);
+    // Ghost scatter copies — three slightly offset, low alpha
+    drawingContext.globalAlpha = 0.18 * pulse;
+    stroke(C.COL_RAG_SYMBOL); strokeWeight(1.5);
+    for (const [gx, gy] of [[3,-2],[-3,1],[1,3]]) {
+      for (let i = 0; i < segs.length; i++) {
+        const [bx1,by1,bx2,by2] = segs[i];
+        const [j0,j1,j2,j3] = s.segJitter[i];
+        line(s.x + bx1*SC + j0 + gx, s.y + by1*SC + j1 + gy,
+             s.x + bx2*SC + j2 + gx, s.y + by2*SC + j3 + gy);
+      }
     }
 
-    // Horizontal scratch lines through the glyph
-    drawingContext.globalAlpha = 0.4 * pulse;
-    stroke(C.COL_RAG_SYMBOL); strokeWeight(1);
-    for (const [x1, x2, dy] of s.scratches) {
-      line(s.x + x1, s.y + dy, s.x + x2, s.y + dy);
-    }
-
-    // Main letter: hollow (BG fill) with coloured outline
+    // Main glyph — full brightness, thicker strokes
     drawingContext.globalAlpha = pulse;
-    stroke(C.COL_RAG_SYMBOL); strokeWeight(1.5); fill(C.COL_BG);
-    text(s.letter, s.x, s.y);
-
-    // Outer glow ring
-    drawingContext.globalAlpha = 0.30 * pulse;
-    noFill(); stroke(C.COL_RAG_SYMBOL); strokeWeight(1.5);
-    circle(s.x, s.y, 48);
+    stroke(C.COL_RAG_SYMBOL); strokeWeight(2.5);
+    for (let i = 0; i < segs.length; i++) {
+      const [bx1,by1,bx2,by2] = segs[i];
+      const [j0,j1,j2,j3] = s.segJitter[i];
+      line(s.x + bx1*SC + j0, s.y + by1*SC + j1,
+           s.x + bx2*SC + j2, s.y + by2*SC + j3);
+    }
 
     drawingContext.globalAlpha = 1;
   },
@@ -755,10 +788,10 @@ const Renderer = {
     fill(alive > 0 ? C.COL_HUD_TEXT : C.COL_DOOR_OPEN);
     text(`ENEMIES: ${alive}`, C.WIDTH - 20, 35);
 
-    // RAG symbol collection status + boss door indicator
+    // Symbol collection status + boss door indicator
     {
       const rc = G.ragCollected;
-      const letters = ['R', 'A', 'G'];
+      const letters = getFloorSymbols(G.floor);
       const allDone = ragAllCollected();
       textAlign(RIGHT, TOP); textSize(10);
       // Draw each letter: bright if collected, dim if not
@@ -926,11 +959,14 @@ const Renderer = {
                          east:  [cellW, cellH/2, 1, 0], west: [0, cellH/2, -1, 0] };
       for (const room of visited) {
         const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
-        stroke('#55557a'); strokeWeight(2);
         for (const [dir, [ex, ey, dx, dy]] of Object.entries(stubEdge)) {
           const nb = room.connections[dir];
           if (nb && !nb.visited) {
-            line(rx + ex, ry + ey, rx + ex + dx * stubLen, ry + ey + dy * stubLen);
+            const toBoss = nb.type === 'boss';
+            stroke(toBoss ? C.COL_BOSS : '#55557a');
+            strokeWeight(toBoss ? 3 : 2);
+            const len = toBoss ? stubLen * 1.8 : stubLen;
+            line(rx + ex, ry + ey, rx + ex + dx * len, ry + ey + dy * len);
           }
         }
       }
@@ -946,8 +982,8 @@ const Renderer = {
       // Background fill
       noStroke(); fill('#12121c');
       rect(rx, ry, cellW, cellH, 3);
-      if (isCurrent) {
-        drawingContext.globalAlpha = 0.28;
+      if (room.type === 'boss' || isCurrent) {
+        drawingContext.globalAlpha = room.type === 'boss' ? 0.35 : 0.28;
         fill(col);
         rect(rx, ry, cellW, cellH, 3);
         drawingContext.globalAlpha = 1;
@@ -955,7 +991,7 @@ const Renderer = {
 
       // Border
       noFill(); stroke(col);
-      strokeWeight(isCurrent ? 2.5 : 1.5);
+      strokeWeight(room.type === 'boss' || isCurrent ? 2.5 : 1.5);
       rect(rx, ry, cellW, cellH, 3);
 
       // Type label (center of cell)
@@ -969,10 +1005,15 @@ const Renderer = {
       textFont('monospace'); textSize(8); textAlign(CENTER, CENTER);
       text(label, rx + cellW / 2, ry + cellH / 2);
 
-      // RAG symbol marker (small, in corner of cell)
+      // Symbol marker — tiny stick glyph in top-right corner of cell
       if (room.ragSymbol && !room.ragSymbol.collected) {
-        fill(C.COL_RAG_SYMBOL); textSize(7);
-        text(room.ragSymbol.letter, rx + cellW - 4, ry + 5);
+        push();
+        const mx = rx + cellW - 5, my = ry + 5, msc = 2.5;
+        stroke(C.COL_RAG_SYMBOL); strokeWeight(1); noFill();
+        for (const [bx1,by1,bx2,by2] of SYMBOL_GLYPHS[room.ragSymbol.letter]) {
+          line(mx + bx1*msc, my + by1*msc, mx + bx2*msc, my + by2*msc);
+        }
+        pop();
       }
 
       // Pulsing player dot on current room

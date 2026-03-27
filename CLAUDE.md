@@ -36,7 +36,7 @@ Open `index.html` directly in any modern browser to play.
 p5.min.js         — p5.js 1.9.4 vendored locally (no CDN dependency)
 creepster.ttf     — Creepster horror font (Google Fonts, vendored locally)
 js/constants.js   — all magic numbers, colour palette, difficulty tuning constants
-js/utils.js       — collision math, vector helpers, getWallRects()
+js/utils.js       — collision math, vector helpers, getWallRects(), SYMBOL_GLYPHS, getFloorSymbols()
 js/state.js       — global G object, state machine, enterRoom(), transitions
 js/bullet.js      — 128-bullet object pool
 js/door.js        — getDoorCenter(), OPP_DIR
@@ -68,7 +68,7 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | ghost | Ghosts (depth-scaled) | Depth 1–2 |
 | skull | Skulls + Ghouls | Depth 3–4 |
 | mixed | Ghosts + Skulls + Ghouls | Depth 5+ |
-| boss | Boss (1) | Deepest room; door locked until boss dies |
+| boss | Boss (1) | Deepest room; door physically locked until all floor symbols collected; stairwell opens on boss death |
 | treasure | none | Dead-end at depth ≥2; +40 HP pickup |
 
 ## Enemy Types
@@ -76,7 +76,7 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | Type | HP | AI | Damage | Score |
 |---|---|---|---|---|
 | Ghost | 30 | Always chases; contact damage | 15 | 10 |
-| Lunge ghost | 30 | As ghost; brief 2.4× speed bursts every 80–160f | 15 | 10 |
+| Lunge ghost | 30 | As ghost; brief 2.4× speed bursts every 60–140f | 15 | 10 |
 | Skull | 50 | Patrols; fires toward player every 60f | 10/bullet | 25 |
 | Ghoul | 50 | Slow crawl; leaps at 5.5× speed when in range | 40/contact | 35 |
 | Boss | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change | 20/bullet | 200 |
@@ -110,7 +110,7 @@ Open with `` ` ``. Tab-completes commands.
 - Bullet object pool (128 pre-allocated) avoids GC pressure; owner tag `'player'`/`'enemy'` controls which entities it damages.
 - Player movement is axis-separated (move X → resolve, then move Y → resolve) for smooth wall sliding.
 - Dungeon uses constrained random-walk on an abstract `Map<"x,y", Room>` grid. Size fixed at 7–14 rooms regardless of floor.
-- Boss room = deepest room; `bossDoorsLocked` cleared when boss HP reaches 0.
+- Boss room = deepest room; entry wall treated as solid by `getWallRects()` until `ragAllCollected()`; stairwell direction set on `room.stairwell` when boss is killed.
 - Treasure room pickup activated on `enterRoom()`, consumed in `checkPickup()` each frame.
 - Lunge ghost: 30% of ghost spawns; timers controlled by `GHOST_LUNGE_COOLDOWN_MIN/MAX`.
 - Power-shot powerup (was "wide-bullet"): 8 shots at 3× bullet radius; spawns in a second dead-end room (65% chance). HUD label "POWER", dev command `power`.
@@ -119,7 +119,7 @@ Open with `` ` ``. Tab-completes commands.
 - **Incoming damage scaling** — `player.takeDamage()` multiplies all damage by `1 + (floor-1) × FLOOR_DAMAGE_BONUS` (10%/floor, no cap).
 - **Drop rate scaling** — enemy heal-drop probability (`DROP_CHANCE`, base 40%) scales inversely with the dungeon's actual average enemies per combat room (`G.dungeon.avgEnemiesPerRoom`, computed after generation), keeping expected drops per room constant across floors. Drop amount per pickup is fixed at `DROP_HEAL_AMOUNT`.
 - **HP preserved across floors** — `nextFloor()` saves and restores `player.hp`/`maxHp` and `G.score` so progression carries over.
-- **Per-instance deformation** — Ghosts use `deform[6]` for organic silhouette variation; Skulls use `deform[5]` + `headPts[7]` (pre-computed irregular spline vertices); Ghouls use `bodyPts[10]` (irregular spline) + `legs[4]` (jointed legs with variable joint count 1–4); Boss `deform[8]` for skull vertex offsets; Player uses `bodyPts`/`headPts` splines with jointed arms.
+- **Per-instance deformation** — Ghosts use `deform[6]` for organic silhouette variation; Skulls use `deform[5]` + `headPts[7]` (pre-computed irregular spline vertices); Ghouls use `bodyPts[10]` (irregular spline) + `legs[4]` (jointed legs with variable joint count 1–4); Boss `deform[8]` for skull vertex offsets; Player uses `bodyPts`/`headPts` splines with jointed arms; Rune symbols use `segJitter[N][4]` (per-segment endpoint offsets [dx1,dy1,dx2,dy2]) for unique stick-glyph deformation.
 - **Boss phase transition** — on entering phase 2 or 3, boss becomes invulnerable for `BOSS_PHASE_TRANSITION_FRAMES` (120f = 2s), glows yellow, and plays the `boss_phase` SFX. `transitionTimer` tracked on the boss instance. Bullets intercept at the shield radius (`e.radius + 18`) with spark break-up; never reach the body.
 - **Boss death explosion** — multi-wave particle burst (5 waves with staggered delays) plus 8 scattered fragments.
 - **Elite enemies** — each combat room (floor 2+) has a 20–30% chance of one enemy being designated elite: pulsing yellow shield (`e.shielded = true`), invulnerable until all non-shielded room-mates die. `checkEliteShield()` runs each frame; bullets break up on the shield (radius+12) the same way as the boss.
@@ -129,3 +129,4 @@ Open with `` ` ``. Tab-completes commands.
 - **Focus swallow** — `_justFocused` flag prevents accidental shot when the window regains focus.
 - **High scores** — `HighScores` (scores.js) persists top-5 `{score, floor, name}` entries in localStorage. On death, `_beginEndSequence()` checks `qualifies()` and routes through `STATES.NAME_ENTRY` if so.
 - All SFX volumes exposed as `SFX_VOL_*` constants for easy tuning.
+- **Floor symbol system** — each floor has a set of 2–4 rune symbols to collect before the boss door opens. Floors 1–4 use fixed named sets (`RAG`, `OTR`, `NV`, `NTEM`); floor 5+ uses `getFloorSymbols(floor)` with a Mulberry32 seeded RNG (always deterministic for a given floor). Symbols are stick-figure glyphs defined in `SYMBOL_GLYPHS` (utils.js), placed in random non-start/non-boss/non-treasure rooms. `G.ragCollected` is keyed by the current floor's letters; `ragAllCollected()` checks all values. Visual: pulsing stick glyph with ghost-scatter copies; locked boss door shows letter progress (`·` for uncollected); HUD top-right shows per-letter status; map shows a tiny glyph in the room corner.

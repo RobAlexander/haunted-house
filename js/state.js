@@ -23,7 +23,7 @@ const G = {
   deathParticles: [],
   shieldSparks:   [],
   drops:          [],
-  ragCollected:   { R: false, A: false, G: false },
+  ragCollected:   Object.fromEntries(getFloorSymbols(1).map(l => [l, false])),
   mapOpen:        false,
   newHighScore:    null,   // 1-based rank of last score, or null
   nameInput:       '',     // player name being typed on NAME_ENTRY screen
@@ -43,7 +43,7 @@ function startGame() {
   G.deathParticles = [];
   G.shieldSparks   = [];
   G.drops          = [];
-  G.ragCollected = { R: false, A: false, G: false };
+  G.ragCollected = Object.fromEntries(getFloorSymbols(G.floor).map(l => [l, false]));
   G.mapOpen         = false;
   G.newHighScore     = null;
   G.nameInput        = '';
@@ -236,7 +236,7 @@ function checkDropPickup() {
 }
 
 function ragAllCollected() {
-  return G.ragCollected.R && G.ragCollected.A && G.ragCollected.G;
+  return Object.values(G.ragCollected).every(Boolean);
 }
 
 function checkRagSymbols() {
@@ -268,6 +268,29 @@ function tickParticles() {
   for (let i = G.drops.length - 1; i >= 0; i--) {
     G.drops[i].life--;
     if (G.drops[i].life <= 0) G.drops.splice(i, 1);
+  }
+}
+
+// Push non-shielded enemies out of invulnerable shields; freeze them for 1s if overlapping.
+// Also: bullets that hit an invulnerable shield redirect damage to any enemy inside it.
+function checkInvulnerableRepulsion() {
+  for (const e of G.enemies) {
+    if (!e.alive) continue;
+    const isInvuln = (e.type === 'boss' && e.transitionTimer > 0) || e.shielded;
+    if (!isInvuln) continue;
+    const shieldR = (e.type === 'boss' && e.transitionTimer > 0) ? e.radius + 18 : e.radius + 12;
+    for (const other of G.enemies) {
+      if (other === e || !other.alive || other.shielded) continue;
+      const dx = other.pos.x - e.pos.x, dy = other.pos.y - e.pos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = shieldR + other.radius;
+      if (dist < minDist) {
+        const safe = dist > 0.01 ? dist : 0.01;
+        other.pos.x = e.pos.x + (dx / safe) * minDist;
+        other.pos.y = e.pos.y + (dy / safe) * minDist;
+        other.shieldFreezeTimer = 60;
+      }
+    }
   }
 }
 

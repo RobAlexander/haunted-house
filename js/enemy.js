@@ -24,8 +24,9 @@ class GhostEnemy {
     // Per-instance shape deformation (6 values, range -1..1)
     // [dome height, left bulge, right bulge, right foot, centre foot, left foot]
     this.deform          = Array.from({ length: 6 }, () => randFloat(-1, 1));
-    this.speedMult    = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
-    this.shielded     = false;
+    this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.shielded        = false;
+    this.shieldFreezeTimer = 0;
     // 30 % of ghosts are lunge variants (red, intermittent double-speed bursts)
     this.variant      = Math.random() < 0.3 ? 'lunge' : 'normal';
     this.lunging      = false;
@@ -35,6 +36,7 @@ class GhostEnemy {
 
   update(player, room) {
     if (!this.alive) return;
+    if (this.shieldFreezeTimer > 0) { this.shieldFreezeTimer--; return; }
 
     if (this.variant === 'lunge' && this.lunging) {
       // Lunge: double-speed straight at player
@@ -115,9 +117,10 @@ class GhoulEnemy {
     this.contactCooldown = 0;
     this.leaping         = false;
     this.leapDuration    = 0;
-    this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
-    this.shielded        = false;
-    this.leapTimer       = randInt(C.GHOUL_LEAP_COOLDOWN_MIN, C.GHOUL_LEAP_COOLDOWN_MAX);
+    this.speedMult         = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.shielded          = false;
+    this.shieldFreezeTimer = 0;
+    this.leapTimer         = randInt(C.GHOUL_LEAP_COOLDOWN_MIN, C.GHOUL_LEAP_COOLDOWN_MAX);
     this.crawlPhase = randFloat(0, Math.PI * 2);
     this.eyeOff     = 3.5 + randFloat(0, 2.5);
 
@@ -147,6 +150,7 @@ class GhoulEnemy {
 
   update(player, room) {
     if (!this.alive) return;
+    if (this.shieldFreezeTimer > 0) { this.shieldFreezeTimer--; return; }
     const dist = circleDist(this.pos.x, this.pos.y, player.pos.x, player.pos.y);
 
     if (this.leaping) {
@@ -226,8 +230,9 @@ class SkullEnemy {
     this.type        = 'skull';
     this.scoreValue  = C.SCORE_SKULL;
     this.alive       = true;
-    this.shielded    = false;
-    this.fireTimer   = randInt(30, C.SKULL_FIRE_RATE);
+    this.shielded          = false;
+    this.shieldFreezeTimer = 0;
+    this.fireTimer         = randInt(30, C.SKULL_FIRE_RATE);
     this.facing      = 0;  // radians, toward player when firing
     // Eye/teeth variation: [leftEyeX, rightEyeX, jawY, toothSpread, unused]
     this.deform      = Array.from({ length: 5 }, () => randFloat(-1, 1));
@@ -244,6 +249,7 @@ class SkullEnemy {
 
   update(player, room) {
     if (!this.alive) return;
+    if (this.shieldFreezeTimer > 0) { this.shieldFreezeTimer--; return; }
 
     // Patrol left/right around spawn point
     this.pos.x += this.vel.x;

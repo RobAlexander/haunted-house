@@ -157,8 +157,8 @@ class DungeonGraph {
       ? combatRooms.reduce((s, r) => s + r.enemyCount, 0) / combatRooms.length
       : C.DROP_HEAL_BASELINE_ENEMIES;
 
-    // Assign RAG symbols (R, A, G) to 3 eligible rooms.
-    // Excluded: start, boss, the room directly adjacent to boss, treasure rooms.
+    // Assign floor symbols to eligible rooms.
+    // Excluded: start, boss, treasure rooms.
     const symbolPool = nonStart.filter(r =>
       r !== bossRoom && r.type !== 'treasure'
     );
@@ -167,18 +167,16 @@ class DungeonGraph {
       const j = randInt(0, i);
       [symbolPool[i], symbolPool[j]] = [symbolPool[j], symbolPool[i]];
     }
-    ['R', 'A', 'G'].forEach((letter, i) => {
+    getFloorSymbols(G.floor).forEach((letter, i) => {
       if (i >= symbolPool.length) return;
       symbolPool[i].ragSymbol = {
         letter,
         x:        C.WIDTH  / 2 + randFloat(-70, 70),
         y:        C.HEIGHT / 2 + randFloat(-50, 50),
         collected: false,
-        // 4 pre-computed jitter offsets for the scratchy ghost-copies
-        jitter:    Array.from({ length: 4 }, () => [randFloat(-4, 4), randFloat(-3, 3)]),
-        // 3 horizontal scratch lines: [xLeft, xRight, yOffset]
-        scratches: Array.from({ length: 3 }, () => [
-          randFloat(-16, -6), randFloat(6, 16), randFloat(-13, 13)
+        // Per-segment endpoint jitter [dx1,dy1,dx2,dy2] for each stroke
+        segJitter: SYMBOL_GLYPHS[letter].map(() => [
+          randFloat(-3, 3), randFloat(-2, 2), randFloat(-3, 3), randFloat(-2, 2),
         ]),
       };
     });
