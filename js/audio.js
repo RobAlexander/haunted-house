@@ -179,13 +179,13 @@ const AudioEngine = (() => {
 
   // Short crisp noise burst (highpass filtered)
   function _sfxShoot(now) {
-    const { src, gain } = _noise(0.07, 0.15);
+    const { src, gain } = _noise(0.07, C.SFX_VOL_SHOOT);
     const hp = ctx.createBiquadFilter();
     hp.type            = 'highpass';
     hp.frequency.value = 3000;
-    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.setValueAtTime(C.SFX_VOL_SHOOT, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
-    src.connect(hp);
+    gain.connect(hp);
     hp.connect(master);
     src.start(now);
     src.stop(now + 0.08);
@@ -199,7 +199,7 @@ const AudioEngine = (() => {
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(420, now);
     osc.frequency.exponentialRampToValueAtTime(65, now + 0.09);
-    oGain.gain.setValueAtTime(0.52, now);
+    oGain.gain.setValueAtTime(C.SFX_VOL_HIT, now);
     oGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
     osc.connect(oGain); oGain.connect(master);
     osc.start(now); osc.stop(now + 0.13);
@@ -216,7 +216,7 @@ const AudioEngine = (() => {
     nFilt.frequency.value = 950;
     nFilt.Q.value = 1.8;
     const nGain   = ctx.createGain();
-    nGain.gain.setValueAtTime(0.5, now);
+    nGain.gain.setValueAtTime(C.SFX_VOL_HIT * 0.96, now);
     nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
     noise.connect(nFilt); nFilt.connect(nGain); nGain.connect(master);
     noise.start(now); noise.stop(now + 0.09);
@@ -229,7 +229,7 @@ const AudioEngine = (() => {
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(220, now);
     osc.frequency.exponentialRampToValueAtTime(40, now + 0.4);
-    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.setValueAtTime(C.SFX_VOL_DEATH, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
     osc.connect(gain);
     gain.connect(reverb);

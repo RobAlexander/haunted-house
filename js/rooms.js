@@ -56,11 +56,7 @@ class DungeonGraph {
   _key(x, y) { return `${x},${y}`; }
 
   _generate() {
-    const floorBonus = (G.floor || 1) - 1;
-    const target = randInt(
-      Math.min(C.MIN_ROOMS + floorBonus, 20),
-      Math.min(C.MAX_ROOMS + floorBonus * 2, 26)
-    );
+    const target = randInt(C.MIN_ROOMS, C.MAX_ROOMS);
 
     const DIRS = [
       { dx:  0, dy: -1, dir: 'north', opp: 'south' },

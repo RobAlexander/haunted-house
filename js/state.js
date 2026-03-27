@@ -2,6 +2,7 @@ const STATES = {
   MENU:            'menu',
   PLAYING:         'playing',
   ROOM_TRANSITION: 'room_transition',
+  NAME_ENTRY:      'name_entry',
   GAME_OVER:       'game_over',
   WIN:             'win',
 };
@@ -22,6 +23,11 @@ const G = {
   drops:          [],
   escConfirm:     false,
   mapOpen:        false,
+  newHighScore:    null,   // 1-based rank of last score, or null
+  nameInput:       '',     // player name being typed on NAME_ENTRY screen
+  pendingEndState: null,   // WIN or GAME_OVER waiting after name entry
+  devConsole:      { open: false, input: '', output: '' },
+  devFullMap:     false,
 };
 
 // ── Game lifecycle ────────────────────────────────────────────────────────
@@ -34,7 +40,10 @@ function startGame() {
   G.clearedFlash   = 0;
   G.deathParticles = [];
   G.drops          = [];
-  G.mapOpen        = false;
+  G.mapOpen          = false;
+  G.newHighScore     = null;
+  G.nameInput        = '';
+  G.pendingEndState  = null;
   G.dungeon        = new DungeonGraph();
   G.bullets        = new BulletPool();
   G.player         = new Player(C.WIDTH / 2, C.HEIGHT / 2);
@@ -111,6 +120,27 @@ function tickTransition() {
   }
 }
 
+// ── End-of-game sequence ─────────────────────────────────────────────────
+// Routes through NAME_ENTRY if the score qualifies, otherwise goes straight
+// to the result screen.
+
+function _beginEndSequence(endState) {
+  if (HighScores.qualifies(G.score)) {
+    G.pendingEndState = endState;
+    G.nameInput       = '';
+    G.state           = STATES.NAME_ENTRY;
+  } else {
+    G.newHighScore = null;
+    G.state        = endState;
+  }
+}
+
+// Called by main.js and renderer (name-entry confirm / skip).
+function submitNameAndEnd(name) {
+  G.newHighScore = HighScores.submit(G.score, G.floor, name);
+  G.state        = G.pendingEndState;
+}
+
 // ── Per-frame checks ──────────────────────────────────────────────────────
 
 function checkRoomCleared() {
@@ -122,9 +152,9 @@ function checkRoomCleared() {
 
     // Boss room cleared → win!
     if (room.type === 'boss') {
-      G.state = STATES.WIN;
       AudioEngine.playSFX('win');
       AudioEngine.stopMusic();
+      G.state = STATES.WIN;
     }
   }
 }

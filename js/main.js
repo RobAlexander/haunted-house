@@ -2,12 +2,30 @@
 
 const keys      = {};
 let   mouseDown = false;
+let   _scale    = 1;   // canvas pixels per logical pixel (set in setup/windowResized)
+
+function _fitCanvas() {
+  // Largest 4:3 rectangle that fits in the current window
+  const aspect = C.WIDTH / C.HEIGHT;
+  let w = windowWidth, h = windowHeight;
+  if (w / h > aspect) w = Math.floor(h * aspect);
+  else                 h = Math.floor(w / aspect);
+  return { w, h };
+}
 
 function setup() {
-  createCanvas(C.WIDTH, C.HEIGHT);
+  const { w, h } = _fitCanvas();
+  _scale = w / C.WIDTH;
+  pixelDensity(1);
+  createCanvas(w, h);
   frameRate(C.FPS);
   textFont('monospace');
-  // Start on menu screen
+}
+
+function windowResized() {
+  const { w, h } = _fitCanvas();
+  _scale = w / C.WIDTH;
+  resizeCanvas(w, h);
 }
 
 function draw() {
@@ -23,8 +41,10 @@ function draw() {
     return;
   }
 
-  // Win / game-over — still render but don't update game
-  if (G.state === STATES.WIN || G.state === STATES.GAME_OVER) {
+  // Name entry / win / game-over — still render but don't update game
+  if (G.state === STATES.NAME_ENTRY ||
+      G.state === STATES.WIN        ||
+      G.state === STATES.GAME_OVER) {
     Renderer.draw();
     return;
   }
@@ -32,7 +52,7 @@ function draw() {
   // ── Active gameplay ──────────────────────────────────────────────────
 
   if (!G.mapOpen) {
-    G.player.update(keys, mouseX, mouseY, G.currentRoom);
+    G.player.update(keys, mouseX / _scale, mouseY / _scale, G.currentRoom);
     if (mouseDown) G.player.shoot(G.bullets);
 
     for (const e of G.enemies) e.update(G.player, G.currentRoom);
@@ -63,9 +83,9 @@ function draw() {
     if (G.clearedFlash > 0) G.clearedFlash--;
     if (!G.player.alive && G.state !== STATES.GAME_OVER) {
       G.mapOpen = false;
-      G.state = STATES.GAME_OVER;
       AudioEngine.playSFX('game_over');
       AudioEngine.stopMusic();
+      _beginEndSequence(STATES.GAME_OVER);
     }
   }
 
@@ -87,8 +107,136 @@ function mouseReleased() {
   return false;
 }
 
+const DEV_COMMANDS = [
+  'boss', 'fullmap', 'help', 'setfloor', 'wide',
+  'spawn_ghost', 'spawn_ghoul', 'spawn_red_ghost', 'spawn_skeleton',
+];
+
+function _devSpawn(EnemyClass, overrides) {
+  if (G.state !== STATES.PLAYING) return 'Start a game first.';
+  const z  = _spawnZone(G.currentRoom);
+  const px = G.player.pos.x, py = G.player.pos.y;
+  for (let i = 0; i < 60; i++) {
+    const x = randFloat(z.minX, z.maxX);
+    const y = randFloat(z.minY, z.maxY);
+    if (Math.hypot(x - px, y - py) < 90) continue;
+    const e = new EnemyClass(x, y);
+    if (overrides) Object.assign(e, overrides);
+    G.enemies.push(e);
+    return `Spawned ${e.type}${overrides ? ' (lunge)' : ''}.`;
+  }
+  return 'No valid spawn position.';
+}
+
+function _execDevCommand(cmd) {
+  cmd = cmd.trim().toLowerCase();
+  if (cmd === 'boss') {
+    if (!G.dungeon) return 'No dungeon loaded.';
+    const bossRoom = G.dungeon.bossRoom;
+    enterRoom(bossRoom, null);
+    G.state = STATES.PLAYING;
+    const P  = C.ROOM_PADDING;
+    const pr = C.PLAYER_RADIUS + 8;
+    const cn = bossRoom.connections;
+    const corners = [
+      { x: P + pr,             y: P + pr,             walls: ['north', 'west'] },
+      { x: C.WIDTH  - P - pr,  y: P + pr,             walls: ['north', 'east'] },
+      { x: C.WIDTH  - P - pr,  y: C.HEIGHT - P - pr,  walls: ['east',  'south'] },
+      { x: P + pr,             y: C.HEIGHT - P - pr,  walls: ['south', 'west'] },
+    ];
+    corners.sort((a, b) =>
+      a.walls.filter(w => cn[w]).length - b.walls.filter(w => cn[w]).length
+    );
+    G.player.pos.x = corners[0].x;
+    G.player.pos.y = corners[0].y;
+    return 'Teleported to boss room.';
+  }
+  if (cmd === 'wide') {
+    if (!G.player) return 'No player.';
+    G.player.wideShots = C.WIDE_BULLET_SHOTS;
+    return `Wide shots granted (${C.WIDE_BULLET_SHOTS}).`;
+  }
+  if (cmd === 'fullmap') {
+    G.devFullMap = !G.devFullMap;
+    return `Full map: ${G.devFullMap ? 'ON' : 'OFF'}.`;
+  }
+  if (cmd.startsWith('setfloor')) {
+    const f = parseInt(cmd.split(' ')[1]);
+    if (isNaN(f) || f < 1) return 'Usage: setfloor <n>';
+    G.floor = f;
+    for (const e of (G.enemies || [])) {
+      if (!e.alive) continue;
+      e.speedMult = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+      if (e.type === 'skeleton')
+        e.vel.x = Math.sign(e.vel.x || 1) * C.SKELETON_SPEED * e.speedMult;
+      if (e.type === 'boss') {
+        e.firerateMult = _floorMult(C.FLOOR_BOSS_FIRERATE_BONUS, C.FLOOR_BOSS_FIRERATE_CAP);
+        e.bulletMult   = _floorMult(C.FLOOR_BOSS_BULLETS_BONUS,  C.FLOOR_BOSS_BULLETS_CAP);
+      }
+    }
+    return `Floor set to ${f} (speed ×${(Math.min(C.FLOOR_SPEED_CAP, 1 + (f-1)*C.FLOOR_SPEED_BONUS)).toFixed(2)}).`;
+  }
+  if (cmd === 'spawn_ghost')     return _devSpawn(GhostEnemy);
+  if (cmd === 'spawn_red_ghost') return _devSpawn(GhostEnemy, { variant: 'lunge' });
+  if (cmd === 'spawn_skeleton')  return _devSpawn(SkeletonEnemy);
+  if (cmd === 'spawn_ghoul')     return _devSpawn(GhoulEnemy);
+  if (cmd === 'help' || cmd === '') {
+    return DEV_COMMANDS.join('  ');
+  }
+  return `Unknown: ${cmd}`;
+}
+
 function keyPressed() {
   AudioEngine.init();
+
+  // Name entry intercepts all input
+  if (G.state === STATES.NAME_ENTRY) {
+    if (key === 'Enter') {
+      submitNameAndEnd(G.nameInput);
+    } else if (key === 'Escape') {
+      submitNameAndEnd('unknown');
+    } else if (key === 'Backspace') {
+      G.nameInput = G.nameInput.slice(0, -1);
+    } else if (key.length === 1 && G.nameInput.length < 12) {
+      G.nameInput += key;
+    }
+    return false;
+  }
+
+  // Dev console intercepts input first
+  if (key === '`') {
+    G.devConsole.open = !G.devConsole.open;
+    G.devConsole.input = '';
+    return false;
+  }
+  if (G.devConsole.open) {
+    if (key === 'Enter') {
+      G.devConsole.output = _execDevCommand(G.devConsole.input);
+      G.devConsole.input  = '';
+    } else if (key === 'Tab') {
+      const partial  = G.devConsole.input.toLowerCase();
+      const matches  = DEV_COMMANDS.filter(c => c.startsWith(partial));
+      if (matches.length === 1) {
+        G.devConsole.input  = matches[0];
+        G.devConsole.output = '';
+      } else if (matches.length > 1) {
+        // Complete to longest common prefix, then show matches
+        let prefix = matches[0];
+        for (const m of matches) while (!m.startsWith(prefix)) prefix = prefix.slice(0, -1);
+        G.devConsole.input  = prefix;
+        G.devConsole.output = matches.join('  ');
+      }
+    } else if (key === 'Backspace') {
+      G.devConsole.input = G.devConsole.input.slice(0, -1);
+    } else if (key === 'Escape') {
+      G.devConsole.open  = false;
+      G.devConsole.input = '';
+    } else if (key.length === 1) {
+      G.devConsole.input += key;
+    }
+    return false;
+  }
+
   keys[key.toLowerCase()] = true;
 
   if (key === 'Enter' && G.state === STATES.MENU) startGame();
@@ -100,6 +248,9 @@ function keyPressed() {
     if (G.escConfirm) {
       G.escConfirm = false;
       G.floor = 1;
+      G.devConsole.open   = false;
+      G.devConsole.input  = '';
+      G.devConsole.output = '';
       AudioEngine.stopMusic();
       G.state = STATES.MENU;
     } else {
@@ -120,6 +271,6 @@ function keyPressed() {
 }
 
 function keyReleased() {
-  keys[key.toLowerCase()] = false;
+  if (!G.devConsole.open) keys[key.toLowerCase()] = false;
   return false;
 }

@@ -2,7 +2,14 @@
 const Renderer = {
 
   draw() {
+    // Render at full canvas resolution: reset any leftover transform, fill the
+    // actual canvas, then apply a uniform scale so all game drawing uses the
+    // fixed 800×600 logical coordinate space regardless of window size.
+    resetMatrix();
     background(C.COL_BG);
+    scale(_scale, _scale);
+
+    const mx = mouseX / _scale, my = mouseY / _scale;
 
     if (G.state === STATES.MENU) { this.drawMenu(); return; }
 
@@ -20,14 +27,16 @@ const Renderer = {
     this.drawBullets(G.bullets);
     this.drawEnemies(G.enemies);
     this.drawPlayer(G.player);
-    this.drawCrosshair(mouseX, mouseY);
+    this.drawCrosshair(mx, my);
     this.drawHUD();
     this.drawVignette(G.player);
 
-    if (G.mapOpen)                    { this.drawMap(); return; }
-    if (G.state === STATES.GAME_OVER) this.drawGameOver();
-    if (G.state === STATES.WIN)       this.drawWin();
-    if (G.escConfirm)                 this.drawEscConfirm();
+    if (G.mapOpen)                         { this.drawMap(); }
+    if (G.state === STATES.NAME_ENTRY)     this.drawNameEntry();
+    if (G.state === STATES.GAME_OVER)      this.drawGameOver();
+    if (G.state === STATES.WIN)            this.drawWin();
+    if (G.escConfirm)                      this.drawEscConfirm();
+    if (G.devConsole.open)                 this.drawDevConsole();
   },
 
   // ── Menu ──────────────────────────────────────────────────────────────
@@ -47,6 +56,22 @@ const Renderer = {
     fill(C.COL_HUD_TITLE); textSize(11);
     text('WASD  move     MOUSE  aim     CLICK  shoot     M  map', C.WIDTH / 2, C.HEIGHT / 2 + 50);
     text('Find the boss room and destroy the haunting', C.WIDTH / 2, C.HEIGHT / 2 + 70);
+
+    // High score table
+    const scores = HighScores.get();
+    if (scores.length > 0) {
+      const tx = C.WIDTH / 2, ty = C.HEIGHT / 2 + 108;
+      noStroke(); fill(C.COL_HUD_TITLE); textSize(10); textAlign(CENTER, TOP);
+      text('─── HIGH SCORES ───', tx, ty);
+      textSize(11);
+      for (let i = 0; i < scores.length; i++) {
+        const { score, floor, name } = scores[i];
+        const isNew  = G.newHighScore === i + 1;
+        const label  = (name || 'unknown').padEnd(12).slice(0, 12);
+        fill(isNew ? C.COL_CLEARED : C.COL_HUD_TEXT);
+        text(`#${i + 1}  ${label}  ${String(score).padStart(6)}  fl.${floor}`, tx, ty + 16 + i * 16);
+      }
+    }
   },
 
   // ── Room ──────────────────────────────────────────────────────────────
@@ -271,27 +296,31 @@ const Renderer = {
 
   _drawSkeleton(e) {
     const x = e.pos.x, y = e.pos.y;
+    const d = e.deform;  // [craniumR, leftEyeX, rightEyeX, jawY, toothSpread]
 
-    // Cranium
+    // Cranium — slightly deformed radius and centre
     noFill(); stroke(C.COL_SKELETON); strokeWeight(1.5);
-    circle(x, y - 1, 22);
+    circle(x, y - 1, 22 + d[0] * 2);
 
-    // Eye sockets: filled dark, then glowing centre
+    // Eye sockets: offset per-instance
+    const lex = x - 5 + d[1] * 1.5, rex = x + 5 + d[2] * 1.5, ey = y - 4;
     noStroke(); fill(C.COL_BG);
-    circle(x - 5, y - 4, 7);
-    circle(x + 5, y - 4, 7);
+    circle(lex, ey, 7);
+    circle(rex, ey, 7);
 
     const glow = 0.55 + 0.45 * Math.sin(G.frame * 0.09 + x * 0.02);
     drawingContext.globalAlpha = glow;
     fill(C.COL_SKELETON);
-    circle(x - 5, y - 4, 3.5);
-    circle(x + 5, y - 4, 3.5);
+    circle(lex, ey, 3.5);
+    circle(rex, ey, 3.5);
     drawingContext.globalAlpha = 1;
 
-    // Teeth (3 short lines along the jaw)
+    // Teeth — jaw Y and spacing deformed
     noFill(); stroke(C.COL_SKELETON); strokeWeight(1.5);
+    const ty = y + 6 + d[3] * 1.5;
+    const ts = 5 + d[4];
     for (let i = -1; i <= 1; i++) {
-      line(x + i * 5, y + 6, x + i * 5, y + 10);
+      line(x + i * ts, ty, x + i * ts, ty + 4);
     }
 
     this._drawEnemyHP(e, x, y - 18);
@@ -300,21 +329,19 @@ const Renderer = {
   _drawGhoul(e) {
     const x = e.pos.x, y = e.pos.y, r = e.radius;
     const p = e.crawlPhase;
+    const d = e.deform;  // [bodyW, bodyH, limb0..3 angle offsets]
     const col = C.COL_GHOUL;
 
-    // Flattened oval body (wider than tall — low crawling profile)
+    // Flattened oval body — width/height deformed per-instance
     noFill(); stroke(col); strokeWeight(1.5);
-    ellipse(x, y, r * 2.4, r * 1.5);
+    ellipse(x, y, r * (2.4 + d[0] * 0.3), r * (1.5 + d[1] * 0.2));
 
-    // Four claw-limbs, animated via crawlPhase
-    const limbAngles = [
-      -Math.PI / 4 + Math.sin(p) * 0.25,
-       Math.PI / 4 - Math.sin(p) * 0.25,
-       Math.PI - Math.PI / 4 + Math.sin(p) * 0.25,
-       Math.PI + Math.PI / 4 - Math.sin(p) * 0.25,
-    ];
+    // Four claw-limbs — base angles offset per-instance, then animated
+    const baseAngles = [-Math.PI/4, Math.PI/4, Math.PI*0.75, Math.PI*1.25];
+    const animSigns  = [1, -1, 1, -1];
     strokeWeight(1.5);
-    for (const a of limbAngles) {
+    for (let i = 0; i < 4; i++) {
+      const a  = baseAngles[i] + d[2 + i] * 0.3 + animSigns[i] * Math.sin(p) * 0.25;
       const ex = x + Math.cos(a) * r * 1.05;
       const ey = y + Math.sin(a) * r * 0.7;
       line(ex, ey, ex + Math.cos(a) * 9, ey + Math.sin(a) * 9);
@@ -335,48 +362,75 @@ const Renderer = {
     const x = e.pos.x, y = e.pos.y, r = e.radius;
     const phase = e.phase;
     const col = C.COL_BOSS;
-    const cr  = r * 0.88;   // cranium radius ~24.6
 
-    // Rotating outer aura — speed and count reflect phase
-    const rot    = G.frame * (0.018 + phase * 0.012);
-    const spokes = 4 + phase * 2;
-    noFill(); stroke(col); strokeWeight(1);
-    drawingContext.globalAlpha = 0.38;
-    for (let i = 0; i < spokes; i++) {
-      const a = (Math.PI * 2 / spokes) * i + rot;
-      line(x + Math.cos(a) * (cr + 3), y + Math.sin(a) * (cr + 3),
-           x + Math.cos(a) * (r + 9),  y + Math.sin(a) * (r + 9));
-    }
-    drawingContext.globalAlpha = 1;
-
-    // Eye sockets (dark holes)
-    noStroke(); fill(C.COL_BG);
-    circle(x - 10, y - 5, 16);
-    circle(x + 10, y - 5, 16);
-
-    // Glowing pupils — pulse faster and brighter at higher phases
+    // Pulse timing (shared by halo and eyes)
     const pulseSpeed = 0.07 + phase * 0.045;
     const baseAlpha  = 0.45 + phase * 0.15;
     const glow = baseAlpha + (1 - baseAlpha) * (0.5 + 0.5 * Math.sin(G.frame * pulseSpeed));
-    drawingContext.globalAlpha = glow;
-    noStroke(); fill(col);
-    circle(x - 10, y - 5, 11);
-    circle(x + 10, y - 5, 11);
-    fill('#ffaaaa');
-    circle(x - 10, y - 5, 4.5);
-    circle(x + 10, y - 5, 4.5);
-    drawingContext.globalAlpha = 1;
 
-    // Teeth
-    noFill(); stroke(col); strokeWeight(1.5);
-    const toothTop = y + cr * 0.52;
-    for (let i = -2; i <= 2; i++) {
-      line(x + i * 9, toothTop, x + i * 9, toothTop + 9);
+    // Phase halo — dim red wash, intensifies at phase 2 and 3
+    if (phase > 1) {
+      drawingContext.globalAlpha = (phase - 1) * 0.12;
+      noStroke(); fill(col);
+      circle(x, y - r * 0.1, r * 2.8);
+      drawingContext.globalAlpha = 1;
     }
 
-    // Cranium outline — drawn last so it frames everything
-    noFill(); stroke(col); strokeWeight(2.5);
-    circle(x, y - 2, cr * 2);
+    // Skull silhouette — dome cranium narrowing down to jaw
+    // Each vertex pushed in/out along its radial direction by deform[i]
+    const dr = r * 0.07;
+    const rawSp = [
+      [x,             y - r * 1.05],  // crown
+      [x + r * 0.82,  y - r * 0.52],  // right temple
+      [x + r * 0.88,  y + r * 0.08],  // right cheek (widest)
+      [x + r * 0.58,  y + r * 0.68],  // right jaw
+      [x,             y + r * 0.82],  // chin
+      [x - r * 0.58,  y + r * 0.68],  // left jaw
+      [x - r * 0.88,  y + r * 0.08],  // left cheek
+      [x - r * 0.82,  y - r * 0.52],  // left temple
+    ];
+    const sp = rawSp.map(([px, py], i) => {
+      const nx = px - x, ny = py - y;
+      const len = Math.sqrt(nx * nx + ny * ny) || 1;
+      const off = e.deform[i] * dr;
+      return [px + (nx / len) * off, py + (ny / len) * off];
+    });
+    fill(C.COL_BG); stroke(col); strokeWeight(1.5 + phase * 0.5);
+    beginShape();
+    curveVertex(sp[0][0], sp[0][1]);  // phantom
+    for (const [px, py] of sp) curveVertex(px, py);
+    curveVertex(sp[0][0], sp[0][1]);  // close
+    curveVertex(sp[0][0], sp[0][1]);  // phantom
+    endShape();
+
+    // Eye sockets — dark holes punched into skull
+    noStroke(); fill(C.COL_BG);
+    circle(x - r * 0.35, y - r * 0.15, r * 0.58);
+    circle(x + r * 0.35, y - r * 0.15, r * 0.58);
+
+    // Glowing pupils
+    drawingContext.globalAlpha = glow;
+    noStroke(); fill(col);
+    circle(x - r * 0.35, y - r * 0.15, r * 0.36);
+    circle(x + r * 0.35, y - r * 0.15, r * 0.36);
+    fill('#ffaaaa');
+    circle(x - r * 0.35, y - r * 0.15, r * 0.15);
+    circle(x + r * 0.35, y - r * 0.15, r * 0.15);
+    drawingContext.globalAlpha = 1;
+
+    // Nasal cavity — inverted V
+    stroke(col); strokeWeight(1); noFill();
+    line(x - r * 0.12, y + r * 0.08, x, y + r * 0.26);
+    line(x + r * 0.12, y + r * 0.08, x, y + r * 0.26);
+
+    // Teeth
+    stroke(col); strokeWeight(1.5);
+    const toothTop = y + r * 0.46;
+    const toothLen = r * 0.28;
+    const gap      = r * 0.28;
+    for (let i = -2; i <= 2; i++) {
+      line(x + i * gap, toothTop, x + i * gap, toothTop + toothLen);
+    }
 
     this._drawBossHP(e);
   },
@@ -580,15 +634,20 @@ const Renderer = {
     text('GAME OVER', C.WIDTH / 2, C.HEIGHT / 2 - 36);
     fill(C.COL_HUD_TEXT); textSize(18);
     text(`SCORE: ${G.score}`, C.WIDTH / 2, C.HEIGHT / 2 + 8);
-    textSize(14);
-    text('ESC  to return to menu', C.WIDTH / 2, C.HEIGHT / 2 + 36);
+    if (G.newHighScore) {
+      fill(C.COL_CLEARED); textSize(13);
+      text(`HIGH SCORE  —  RANK #${G.newHighScore}`, C.WIDTH / 2, C.HEIGHT / 2 + 30);
+    }
+    textSize(14); fill(C.COL_HUD_TEXT);
+    text('ESC  to return to menu', C.WIDTH / 2, C.HEIGHT / 2 + (G.newHighScore ? 50 : 36));
   },
 
   // ── Map overlay ───────────────────────────────────────────────────────
 
   drawMap() {
     if (!G.dungeon) return;
-    const visited = [...G.dungeon.grid.values()].filter(r => r.visited);
+    const allRooms = [...G.dungeon.grid.values()];
+    const visited  = allRooms.filter(r => r.visited);
     if (!visited.length) return;
 
     // Dark overlay
@@ -598,12 +657,13 @@ const Renderer = {
     // Title
     noStroke(); fill(C.COL_HUD_TITLE);
     textFont('monospace'); textSize(14); textAlign(CENTER, TOP);
-    text('[ MAP ]', C.WIDTH / 2, 16);
+    text(G.devFullMap ? '[ MAP  —  DEV: FULL ]' : '[ MAP ]', C.WIDTH / 2, 16);
     fill(C.COL_HUD_TEXT); textSize(10);
     text('M  or  ESC  to close', C.WIDTH / 2, 36);
 
-    // Grid extents
-    const gxs = visited.map(r => r.gx), gys = visited.map(r => r.gy);
+    // Grid extents — use all rooms if fullmap, else only visited
+    const extentRooms = G.devFullMap ? allRooms : visited;
+    const gxs = extentRooms.map(r => r.gx), gys = extentRooms.map(r => r.gy);
     const minGx = Math.min(...gxs), maxGx = Math.max(...gxs);
     const minGy = Math.min(...gys), maxGy = Math.max(...gys);
 
@@ -623,6 +683,45 @@ const Renderer = {
       treasure: C.COL_PICKUP,
     };
 
+    // Fullmap: draw unvisited corridors + rooms first (dim)
+    if (G.devFullMap) {
+      const unvisited = allRooms.filter(r => !r.visited);
+      for (const room of unvisited) {
+        const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
+        if (room.connections.south && !room.connections.south.visited) {
+          const nry = oy + room.connections.south.gy * stepY;
+          stroke('#252535'); strokeWeight(5);
+          line(rx + cellW / 2, ry + cellH, rx + cellW / 2, nry);
+        }
+        if (room.connections.east && !room.connections.east.visited) {
+          const nrx = ox + room.connections.east.gx * stepX;
+          stroke('#252535'); strokeWeight(5);
+          line(rx + cellW, ry + cellH / 2, nrx, ry + cellH / 2);
+        }
+      }
+      for (const room of unvisited) {
+        const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
+        noStroke(); fill('#0a0a12');
+        rect(rx, ry, cellW, cellH, 3);
+        noFill(); stroke('#2a2a3a'); strokeWeight(1);
+        rect(rx, ry, cellW, cellH, 3);
+      }
+      // Also draw corridors from visited to unvisited rooms
+      for (const room of visited) {
+        const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
+        if (room.connections.south && !room.connections.south.visited) {
+          const nry = oy + room.connections.south.gy * stepY;
+          stroke('#252535'); strokeWeight(5);
+          line(rx + cellW / 2, ry + cellH, rx + cellW / 2, nry);
+        }
+        if (room.connections.east && !room.connections.east.visited) {
+          const nrx = ox + room.connections.east.gx * stepX;
+          stroke('#252535'); strokeWeight(5);
+          line(rx + cellW, ry + cellH / 2, nrx, ry + cellH / 2);
+        }
+      }
+    }
+
     // Corridors — draw only south and east to avoid duplicates
     for (const room of visited) {
       const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
@@ -638,17 +737,19 @@ const Renderer = {
       }
     }
 
-    // Unvisited exit stubs — short thin lines hinting at unexplored passages
-    const stubLen = 10;
-    const stubEdge = { north: [cellW/2, 0, 0, -1], south: [cellW/2, cellH, 0, 1],
-                       east:  [cellW, cellH/2, 1, 0], west: [0, cellH/2, -1, 0] };
-    for (const room of visited) {
-      const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
-      stroke('#55557a'); strokeWeight(2);
-      for (const [dir, [ex, ey, dx, dy]] of Object.entries(stubEdge)) {
-        const nb = room.connections[dir];
-        if (nb && !nb.visited) {
-          line(rx + ex, ry + ey, rx + ex + dx * stubLen, ry + ey + dy * stubLen);
+    // Unvisited exit stubs (normal map mode only)
+    if (!G.devFullMap) {
+      const stubLen = 10;
+      const stubEdge = { north: [cellW/2, 0, 0, -1], south: [cellW/2, cellH, 0, 1],
+                         east:  [cellW, cellH/2, 1, 0], west: [0, cellH/2, -1, 0] };
+      for (const room of visited) {
+        const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
+        stroke('#55557a'); strokeWeight(2);
+        for (const [dir, [ex, ey, dx, dy]] of Object.entries(stubEdge)) {
+          const nb = room.connections[dir];
+          if (nb && !nb.visited) {
+            line(rx + ex, ry + ey, rx + ex + dx * stubLen, ry + ey + dy * stubLen);
+          }
         }
       }
     }
@@ -732,5 +833,71 @@ const Renderer = {
     text('Press  N  for next floor  (harder)', C.WIDTH / 2, C.HEIGHT / 2 + 46);
     fill(C.COL_HUD_TEXT); textSize(12);
     text('ESC  to return to menu', C.WIDTH / 2, C.HEIGHT / 2 + 68);
+  },
+
+  // ── Name entry overlay ────────────────────────────────────────────────
+
+  drawNameEntry() {
+    const bw = 420, bh = 130;
+    const bx = (C.WIDTH  - bw) / 2;
+    const by = (C.HEIGHT - bh) / 2;
+
+    // Dim the game world behind the box
+    noStroke(); fill(0, 0, 0, 175);
+    rect(0, 0, C.WIDTH, C.HEIGHT);
+
+    // Box
+    fill('#0d0d18'); stroke(C.COL_HUD_TITLE); strokeWeight(1.5);
+    rect(bx, by, bw, bh, 6);
+
+    textFont('monospace'); textAlign(CENTER, TOP);
+
+    // Title
+    noStroke(); fill(C.COL_CLEARED); textSize(14);
+    text('YOU MADE THE HIGH SCORE TABLE!', C.WIDTH / 2, by + 14);
+
+    fill(C.COL_HUD_TEXT); textSize(11);
+    text('Enter your name:', C.WIDTH / 2, by + 36);
+
+    // Input field
+    const fw = 280, fh = 28, fx = (C.WIDTH - fw) / 2, fy = by + 54;
+    noStroke(); fill('#111122');
+    rect(fx, fy, fw, fh, 3);
+    stroke(C.COL_HUD_TITLE); strokeWeight(1); noFill();
+    rect(fx, fy, fw, fh, 3);
+
+    const cursor = Math.floor(G.frame / 18) % 2 === 0 ? '|' : '';
+    noStroke(); fill('#eeeeff'); textSize(14); textAlign(CENTER, CENTER);
+    text(G.nameInput + cursor, C.WIDTH / 2, fy + fh / 2);
+
+    // Footer
+    noStroke(); fill(C.COL_HUD_TITLE); textSize(10); textAlign(CENTER, TOP);
+    text('ENTER  to confirm     ESC  to skip', C.WIDTH / 2, by + bh - 18);
+  },
+
+  // ── Dev console overlay ───────────────────────────────────────────────
+
+  drawDevConsole() {
+    const dc   = G.devConsole;
+    const bh   = 54;
+    const by   = C.HEIGHT - bh;
+    const pad  = 10;
+
+    // Background
+    noStroke(); fill(0, 0, 0, 220);
+    rect(0, by, C.WIDTH, bh);
+    stroke('#22cc44'); strokeWeight(1);
+    line(0, by, C.WIDTH, by);
+
+    textFont('monospace'); textAlign(LEFT, TOP);
+
+    // Output line
+    noStroke(); fill('#22cc44'); textSize(11);
+    text(dc.output || 'Type "help" for commands', pad, by + 8);
+
+    // Input line with blinking cursor
+    const cursor = Math.floor(G.frame / 18) % 2 === 0 ? '_' : '';
+    fill('#88ffaa'); textSize(12);
+    text(`> ${dc.input}${cursor}`, pad, by + 28);
   },
 };

@@ -8,36 +8,38 @@ const C = {
   FLOOR_GRID_SIZE: 40,
 
   // Player
-  PLAYER_SPEED:            3.5,
+  PLAYER_SPEED:            4,
   PLAYER_RADIUS:           12,
   PLAYER_MAX_HP:           100,
   PLAYER_FIRE_RATE:        10,   // frames between shots
   PLAYER_INVINCIBLE_FRAMES: 45,
 
   // Bullets
-  BULLET_SPEED:  8,
+  BULLET_SPEED:  12,
   BULLET_RADIUS: 4,
   BULLET_TTL:    90,
   BULLET_DAMAGE: 20,
   POOL_SIZE:     128,
 
   // Ghost enemy
-  GHOST_SPEED:            1.2,
+  GHOST_SPEED:            1.5,
   GHOST_RADIUS:           14,
   GHOST_HP:               30,
   GHOST_CONTACT_DAMAGE:   15,
   GHOST_CONTACT_COOLDOWN: 60,
-  GHOST_CHASE_DIST:       300,
-  GHOST_WANDER_CHANGE:    90,   // max frames per wander direction
   GHOST_COUNT:            5,   // fallback; rooms use depth-scaled counts
+ 
+  // Lunge ghost cooldown between lunges (frames). Lower = more frequent.
+  GHOST_LUNGE_COOLDOWN_MIN: 80,
+  GHOST_LUNGE_COOLDOWN_MAX: 160,
 
   // Skeleton enemy
-  SKELETON_SPEED:         1.6,
+  SKELETON_SPEED:         2,
   SKELETON_RADIUS:        13,
   SKELETON_HP:            50,
   SKELETON_BULLET_SPEED:  3.5,
   SKELETON_BULLET_DAMAGE: 10,
-  SKELETON_FIRE_RATE:     90,   // frames between shots
+  SKELETON_FIRE_RATE:     60,   // frames between shots
   SKELETON_PATROL_RANGE:  110,  // px either side of spawn
 
   // Boss enemy
@@ -46,7 +48,7 @@ const C = {
   BOSS_SPEED_1:           0.85,
   BOSS_SPEED_2:           1.3,
   BOSS_SPEED_3:           1.8,
-  BOSS_BULLET_SPEED:      3,
+  BOSS_BULLET_SPEED:      4,
   BOSS_BULLET_DAMAGE:     20,
 
   // Score
@@ -96,14 +98,30 @@ const C = {
   // Ghoul enemy
   GHOUL_HP:             50,
   GHOUL_RADIUS:         14,
-  GHOUL_SPEED:          0.7,
+  GHOUL_SPEED:          1.2,
   GHOUL_LEAP_SPEED:     5.5,
   GHOUL_LEAP_RANGE:     180,
-  GHOUL_CONTACT_DAMAGE: 20,
+  GHOUL_CONTACT_DAMAGE: 40,
   SCORE_GHOUL:          35,
+  // Ghoul leap cooldown between leaps (frames). Lower = more frequent.
+  GHOUL_LEAP_COOLDOWN_MIN: 60,
+  GHOUL_LEAP_COOLDOWN_MAX: 140,
 
   // Wide bullet powerup
   WIDE_BULLET_SHOTS:    8,
+
+  // Floor difficulty scaling (floor 1 = baseline; scales linearly each floor above 1)
+  FLOOR_SPEED_BONUS:         0.065,  // speed multiplier added per floor (floor 2 = 1.065×)
+  FLOOR_SPEED_CAP:           1.3,    // max speed multiplier (reached ~floor 6)
+  FLOOR_BOSS_FIRERATE_BONUS: 0.1,    // boss fire-rate divisor added per floor
+  FLOOR_BOSS_FIRERATE_CAP:   2.0,    // max fire-rate multiplier — intervals halved (~floor 11)
+  FLOOR_BOSS_BULLETS_BONUS:  0.065,  // boss bullet-count multiplier per floor
+  FLOOR_BOSS_BULLETS_CAP:    1.5,    // max bullet-count multiplier (reached ~floor 8)
+
+  // SFX volumes (0–1)
+  SFX_VOL_SHOOT: 0.05,
+  SFX_VOL_HIT:   0.52,
+  SFX_VOL_DEATH: 0.2,
 
   // New colors
   COL_LUNGE_GHOST: '#ff4455',

@@ -1,3 +1,9 @@
+// ── Floor scaling helpers ─────────────────────────────────────────────────
+
+function _floorMult(bonusPerFloor, cap) {
+  return Math.min(cap, 1 + ((G.floor || 1) - 1) * bonusPerFloor);
+}
+
 // ── Ghost ─────────────────────────────────────────────────────────────────
 
 class GhostEnemy {
@@ -18,45 +24,35 @@ class GhostEnemy {
     // Per-instance shape deformation (6 values, range -1..1)
     // [dome height, left bulge, right bulge, right foot, centre foot, left foot]
     this.deform          = Array.from({ length: 6 }, () => randFloat(-1, 1));
+    this.speedMult    = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
     // 30 % of ghosts are lunge variants (red, intermittent double-speed bursts)
     this.variant      = Math.random() < 0.3 ? 'lunge' : 'normal';
     this.lunging      = false;
     this.lungeDuration = 0;
-    this.lungeTimer   = randInt(60, 140);
+    this.lungeTimer   = randInt(C.GHOST_LUNGE_COOLDOWN_MIN, C.GHOST_LUNGE_COOLDOWN_MAX);
   }
 
   update(player, room) {
     if (!this.alive) return;
 
-    const dist = circleDist(this.pos.x, this.pos.y, player.pos.x, player.pos.y);
-
     if (this.variant === 'lunge' && this.lunging) {
       // Lunge: double-speed straight at player
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
-      this.vel.x = n.x * C.GHOST_SPEED * 2.4;
-      this.vel.y = n.y * C.GHOST_SPEED * 2.4;
+      this.vel.x = n.x * C.GHOST_SPEED * 2.4 * this.speedMult;
+      this.vel.y = n.y * C.GHOST_SPEED * 2.4 * this.speedMult;
       this.lungeDuration--;
       if (this.lungeDuration <= 0) {
         this.lunging   = false;
-        this.lungeTimer = randInt(80, 160);
+        this.lungeTimer = randInt(C.GHOST_LUNGE_COOLDOWN_MIN, C.GHOST_LUNGE_COOLDOWN_MAX);
       }
-    } else if (dist < C.GHOST_CHASE_DIST) {
+    } else {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
-      this.vel.x = n.x * C.GHOST_SPEED;
-      this.vel.y = n.y * C.GHOST_SPEED;
+      this.vel.x = n.x * C.GHOST_SPEED * this.speedMult;
+      this.vel.y = n.y * C.GHOST_SPEED * this.speedMult;
       if (this.variant === 'lunge') {
         this.lungeTimer--;
         if (this.lungeTimer <= 0) { this.lunging = true; this.lungeDuration = 32; }
       }
-    } else {
-      this.wanderTimer--;
-      if (this.wanderTimer <= 0) {
-        const angle    = randFloat(0, Math.PI * 2);
-        this.wanderDir = { x: Math.cos(angle), y: Math.sin(angle) };
-        this.wanderTimer = randInt(40, C.GHOST_WANDER_CHANGE);
-      }
-      this.vel.x = this.wanderDir.x * C.GHOST_SPEED * 0.55;
-      this.vel.y = this.wanderDir.y * C.GHOST_SPEED * 0.55;
     }
 
     this.pos.x += this.vel.x;
@@ -118,8 +114,11 @@ class GhoulEnemy {
     this.contactCooldown = 0;
     this.leaping         = false;
     this.leapDuration    = 0;
-    this.leapTimer       = randInt(40, 110);
+    this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.leapTimer       = randInt(C.GHOUL_LEAP_COOLDOWN_MIN, C.GHOUL_LEAP_COOLDOWN_MAX);
     this.crawlPhase      = randFloat(0, Math.PI * 2);
+    // Per-instance static deformation: [bodyW, bodyH, limb0..3 angle offsets]
+    this.deform          = Array.from({ length: 6 }, () => randFloat(-1, 1));
   }
 
   update(player, room) {
@@ -128,23 +127,18 @@ class GhoulEnemy {
 
     if (this.leaping) {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
-      this.vel.x = n.x * C.GHOUL_LEAP_SPEED;
-      this.vel.y = n.y * C.GHOUL_LEAP_SPEED;
+      this.vel.x = n.x * C.GHOUL_LEAP_SPEED * this.speedMult;
+      this.vel.y = n.y * C.GHOUL_LEAP_SPEED * this.speedMult;
       this.leapDuration--;
       if (this.leapDuration <= 0) {
         this.leaping   = false;
-        this.leapTimer = randInt(60, 140);
+        this.leapTimer = randInt(C.GHOUL_LEAP_COOLDOWN_MIN, C.GHOUL_LEAP_COOLDOWN_MAX);
       }
     } else {
-      // Slow crawl toward player
-      if (dist < 350) {
-        const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
-        this.vel.x = n.x * C.GHOUL_SPEED;
-        this.vel.y = n.y * C.GHOUL_SPEED;
-      } else {
-        this.vel.x *= 0.85;
-        this.vel.y *= 0.85;
-      }
+      // Always crawl toward player
+      const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      this.vel.x = n.x * C.GHOUL_SPEED * this.speedMult;
+      this.vel.y = n.y * C.GHOUL_SPEED * this.speedMult;
       // Trigger leap when close enough
       if (dist < C.GHOUL_LEAP_RANGE) {
         this.leapTimer--;
@@ -200,7 +194,8 @@ class SkeletonEnemy {
     this.pos         = { x, y };
     this.spawnX      = x;
     this.spawnY      = y;
-    this.vel         = { x: C.SKELETON_SPEED, y: 0 };
+    this.speedMult   = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.vel         = { x: C.SKELETON_SPEED * this.speedMult, y: 0 };
     this.hp          = C.SKELETON_HP;
     this.maxHp       = C.SKELETON_HP;
     this.radius      = C.SKELETON_RADIUS;
@@ -209,6 +204,8 @@ class SkeletonEnemy {
     this.alive       = true;
     this.fireTimer   = randInt(30, C.SKELETON_FIRE_RATE);
     this.facing      = 0;  // radians, toward player when firing
+    // Per-instance static deformation: [craniumR, leftEyeX, rightEyeX, jawY, toothSpread]
+    this.deform      = Array.from({ length: 5 }, () => randFloat(-1, 1));
   }
 
   update(player, room) {
@@ -273,14 +270,20 @@ class BossEnemy {
     this.alive      = true;
     this.phase      = 1;
     this.fireTimer  = 60;
-    this.erraticDir = { x: 1, y: 0 };
-    this.erraticTimer = 0;
+    this.erraticDir    = { x: 1, y: 0 };
+    this.erraticTimer  = 0;
+    this.speedMult     = _floorMult(C.FLOOR_SPEED_BONUS,         C.FLOOR_SPEED_CAP);
+    this.firerateMult  = _floorMult(C.FLOOR_BOSS_FIRERATE_BONUS, C.FLOOR_BOSS_FIRERATE_CAP);
+    this.bulletMult    = _floorMult(C.FLOOR_BOSS_BULLETS_BONUS,  C.FLOOR_BOSS_BULLETS_CAP);
+    // Per-instance static deformation: radial offset per skull vertex (8 points)
+    this.deform        = Array.from({ length: 8 }, () => randFloat(-1, 1));
   }
 
   get speed() {
-    if (this.phase === 3) return C.BOSS_SPEED_3;
-    if (this.phase === 2) return C.BOSS_SPEED_2;
-    return C.BOSS_SPEED_1;
+    const base = this.phase === 3 ? C.BOSS_SPEED_3
+               : this.phase === 2 ? C.BOSS_SPEED_2
+               :                    C.BOSS_SPEED_1;
+    return base * this.speedMult;
   }
 
   update(player, room) {
@@ -322,7 +325,8 @@ class BossEnemy {
 
     // Fire
     this.fireTimer--;
-    const fireRate = this.phase === 1 ? 120 : this.phase === 2 ? 80 : 55;
+    const baseRate = this.phase === 1 ? 120 : this.phase === 2 ? 80 : 55;
+    const fireRate = Math.max(10, Math.round(baseRate / this.firerateMult));
     if (this.fireTimer <= 0) {
       this._fireBurst();
       this.fireTimer = fireRate;
@@ -330,7 +334,8 @@ class BossEnemy {
   }
 
   _fireBurst() {
-    const count = this.phase === 1 ? 4 : this.phase === 2 ? 8 : 12;
+    const baseCount = this.phase === 1 ? 4 : this.phase === 2 ? 8 : 12;
+    const count = Math.round(baseCount * this.bulletMult);
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 / count) * i;
       const vx = Math.cos(angle) * C.BOSS_BULLET_SPEED;
@@ -422,7 +427,7 @@ function spawnSkeletons(room) {
   return skeletons;
 }
 
-function spawnBoss(room) {
+function spawnBoss() {
   return [new BossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
 }
 
@@ -440,7 +445,7 @@ function spawnGhouls(room) {
 
 // Main entry point called by state.js
 function spawnEnemies(room) {
-  if (room.type === 'boss')      return spawnBoss(room);
+  if (room.type === 'boss')      return spawnBoss();
   if (room.type === 'skeleton')  return [...spawnSkeletons(room), ...spawnGhouls(room)];
   if (room.type === 'mixed')     return [...spawnGhosts(room), ...spawnSkeletons(room), ...spawnGhouls(room)];
   return spawnGhosts(room);
