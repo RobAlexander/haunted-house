@@ -96,8 +96,8 @@ function draw() {
 
 function mousePressed() {
   AudioEngine.init();
+  if (G.state === STATES.MENU) { startGame(); return false; }
   mouseDown = true;
-  if (G.state === STATES.MENU)    { startGame(); return false; }
   if (G.state === STATES.PLAYING) G.player.shoot(G.bullets);
   return false;
 }
@@ -174,7 +174,9 @@ function _execDevCommand(cmd) {
         e.bulletMult   = _floorMult(C.FLOOR_BOSS_BULLETS_BONUS,  C.FLOOR_BOSS_BULLETS_CAP);
       }
     }
-    return `Floor set to ${f} (speed ×${(Math.min(C.FLOOR_SPEED_CAP, 1 + (f-1)*C.FLOOR_SPEED_BONUS)).toFixed(2)}).`;
+    const speedMult  = Math.min(C.FLOOR_SPEED_CAP, 1 + (f-1)*C.FLOOR_SPEED_BONUS);
+    const damageMult = 1 + (f-1)*C.FLOOR_DAMAGE_BONUS;
+    return `Floor set to ${f} (speed ×${speedMult.toFixed(2)}, damage ×${damageMult.toFixed(2)}).`;
   }
   if (cmd === 'spawn_ghost')     return _devSpawn(GhostEnemy);
   if (cmd === 'spawn_red_ghost') return _devSpawn(GhostEnemy, { variant: 'lunge' });
@@ -245,7 +247,8 @@ function keyPressed() {
 
   if (key === 'Escape' && G.state !== STATES.MENU) {
     if (G.mapOpen) { G.mapOpen = false; return false; }
-    if (G.escConfirm) {
+    const endScreen = G.state === STATES.GAME_OVER || G.state === STATES.WIN;
+    if (G.escConfirm || endScreen) {
       G.escConfirm = false;
       G.floor = 1;
       G.devConsole.open   = false;

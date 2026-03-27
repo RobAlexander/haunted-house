@@ -61,7 +61,8 @@ class Player {
 
   takeDamage(amount) {
     if (this.invincibleFrames > 0) return;
-    this.hp -= amount;
+    const scaled = amount * (1 + ((G.floor || 1) - 1) * C.FLOOR_DAMAGE_BONUS);
+    this.hp -= scaled;
     this.invincibleFrames = C.PLAYER_INVINCIBLE_FRAMES;
     AudioEngine.playSFX('hit');
     if (this.hp <= 0) {

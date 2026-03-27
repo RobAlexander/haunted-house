@@ -80,6 +80,7 @@ MENU → (Enter / click) → PLAYING → ROOM_TRANSITION → PLAYING
 | Boss | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase | 20/bullet | 200 |
 
 All enemy movement speeds and boss fire rate / bullet count scale with floor number (see `FLOOR_*` constants).
+Incoming player damage scales up 10% per floor with no cap (`FLOOR_DAMAGE_BONUS`).
 
 ## Developer Console
 
@@ -112,7 +113,9 @@ Open with `` ` ``. Tab-completes commands.
 - Lunge ghost: 30% of ghost spawns; timers controlled by `GHOST_LUNGE_COOLDOWN_MIN/MAX`.
 - Wide-bullet powerup: 8 shots at 3× bullet radius; spawns in a second dead-end room (65% chance).
 - GhoulEnemy: crawls slowly then leaps at `GHOUL_LEAP_SPEED` when within `GHOUL_LEAP_RANGE`; appears in skeleton and mixed rooms.
-- **Floor difficulty scaling** — `_floorMult(bonus, cap)` in enemy.js computes a linear ramp capped at `cap`; stored on each enemy at spawn as `speedMult` (and `firerateMult`/`bulletMult` for boss). `setfloor` console command patches live enemies.
+- **Floor difficulty scaling** — `_floorMult(bonus, cap)` in enemy.js computes a linear ramp capped at `cap`; stored on each enemy at spawn as `speedMult` (and `firerateMult`/`bulletMult` for boss). `setfloor` console command patches live enemies and reports speed + damage multipliers.
+- **Incoming damage scaling** — `player.takeDamage()` multiplies all damage by `1 + (floor-1) × FLOOR_DAMAGE_BONUS` (10%/floor, no cap).
+- **Drop rate scaling** — enemy heal-drop probability (`DROP_CHANCE`, base 40%) scales inversely with the dungeon's actual average enemies per combat room (`G.dungeon.avgEnemiesPerRoom`, computed after generation), keeping expected drops per room constant across floors. Drop amount per pickup is fixed at `DROP_HEAL_AMOUNT`.
 - **Per-instance deformation** — Ghosts use `deform[6]` for organic silhouette variation; Skeletons `deform[5]` for skull shape; Ghouls `deform[6]` for body/limb variation; Boss `deform[8]` for skull vertex offsets.
 - **High scores** — `HighScores` (scores.js) persists top-5 `{score, floor, name}` entries in localStorage. On death, `_beginEndSequence()` checks `qualifies()` and routes through `STATES.NAME_ENTRY` if so.
 - All SFX volumes exposed as `SFX_VOL_*` constants for easy tuning.

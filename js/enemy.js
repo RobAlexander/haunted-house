@@ -377,15 +377,17 @@ function _spawnDeathFX(enemy) {
     life: 35, maxLife: 35,
     col,
   });
-  // 40% chance of health drop (boss always drops)
-  if (enemy.type === 'boss' || Math.random() < 0.4) {
-    G.drops.push({ x: enemy.pos.x, y: enemy.pos.y, amount: 20, life: 360, maxLife: 360 });
+  // Drop chance scales inversely with avg enemies/room so expected drops per room is floor-constant
+  const avg       = G.dungeon ? G.dungeon.avgEnemiesPerRoom : C.DROP_HEAL_BASELINE_ENEMIES;
+  const dropChance = C.DROP_CHANCE * C.DROP_HEAL_BASELINE_ENEMIES / avg;
+  if (enemy.type === 'boss' || Math.random() < dropChance) {
+    G.drops.push({ x: enemy.pos.x, y: enemy.pos.y, amount: C.DROP_HEAL_AMOUNT, life: 360, maxLife: 360 });
   }
 }
 
 // ── Spawn helpers ─────────────────────────────────────────────────────────
 
-function _spawnZone(room) {
+function _spawnZone(_room) {
   const P      = C.ROOM_PADDING;
   const margin = 30;
   return {

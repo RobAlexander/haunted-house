@@ -150,5 +150,11 @@ class DungeonGraph {
         room.enemyCount = randInt(2 + fb, 4 + fb);
       }
     }
+
+    // Compute actual average enemies across combat rooms (used to scale drop heal amounts)
+    const combatRooms = nonStart.filter(r => r.type !== 'boss' && r.type !== 'treasure' && r.enemyCount);
+    this.avgEnemiesPerRoom = combatRooms.length
+      ? combatRooms.reduce((s, r) => s + r.enemyCount, 0) / combatRooms.length
+      : C.DROP_HEAL_BASELINE_ENEMIES;
   }
 }
