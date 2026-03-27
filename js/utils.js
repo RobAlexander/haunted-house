@@ -69,9 +69,16 @@ function getWallRects() {
   const stairwell = room ? room.stairwell : null;
   const rects = [];
 
+  // Returns true if this direction connects to the boss room and RAG symbols aren't all collected
+  function _ragLocked(dir) {
+    if (!conn[dir] || !G.dungeon || conn[dir] !== G.dungeon.bossRoom) return false;
+    const rc = G.ragCollected;
+    return !(rc && rc.R && rc.A && rc.G);
+  }
+
   function addWallH(y, dir) {
     // Horizontal wall at row y, spanning x = [0, W]
-    if ((!conn[dir] && stairwell !== dir) || !cl) {
+    if ((!conn[dir] && stairwell !== dir) || !cl || _ragLocked(dir)) {
       rects.push({ x: 0, y, w: W, h: P });
     } else {
       // Gap at centre
@@ -82,7 +89,7 @@ function getWallRects() {
 
   function addWallV(x, dir) {
     // Vertical wall at column x, spanning y = [0, H]
-    if ((!conn[dir] && stairwell !== dir) || !cl) {
+    if ((!conn[dir] && stairwell !== dir) || !cl || _ragLocked(dir)) {
       rects.push({ x, y: 0, w: P, h: H });
     } else {
       if (H / 2 - DH > 0)    rects.push({ x, y: 0,          w: P, h: H / 2 - DH         });

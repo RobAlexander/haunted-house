@@ -22,6 +22,7 @@ const Renderer = {
     this.drawRoom(G.currentRoom);
     this.drawPickup(G.currentRoom);
     this.drawWidePowerup(G.currentRoom);
+    this.drawRagSymbol(G.currentRoom);
     this.drawDrops(G.drops);
     this.drawDeathParticles(G.deathParticles);
     this.drawBullets(G.bullets);
@@ -151,6 +152,26 @@ const Renderer = {
       stroke(C.COL_DOOR_CLOSED); strokeWeight(2);
       if (isHoriz) line(mid - DH, y1, mid + DH, y1);
       else         line(x1, mid - DH, x1, mid + DH);
+    } else if (connection.type === 'boss' && !ragAllCollected()) {
+      // Boss door — symbol-locked. Show as sealed with boss colour + padlock + RAG status.
+      stroke(C.COL_BOSS); strokeWeight(2);
+      if (isHoriz) line(mid - DH, y1, mid + DH, y1);
+      else         line(x1, mid - DH, x1, mid + DH);
+      this._drawPadlock(isHoriz ? mid : x1, isHoriz ? y1 : mid, tickDx, tickDy, C.COL_BOSS);
+      noStroke(); fill(C.COL_BOSS); textSize(9); textAlign(CENTER, CENTER);
+      if (isHoriz) {
+        text('BOSS', mid, y1 + tickDy * 2.5);
+        const rc = G.ragCollected;
+        const sym = ['R','A','G'].map(l => rc[l] ? l : '·').join(' ');
+        fill(C.COL_RAG_SYMBOL); textSize(8);
+        text(sym, mid, y1 + tickDy * 5.5);
+      } else {
+        text('BOSS', x1 + tickDx * 2.5, mid);
+        const rc = G.ragCollected;
+        const sym = ['R','A','G'].map(l => rc[l] ? l : '·').join(' ');
+        fill(C.COL_RAG_SYMBOL); textSize(8);
+        text(sym, x1 + tickDx * 2.5, mid + tickDy * 9 + (tickDx > 0 ? 12 : -12));
+      }
     } else if (connection.type === 'stairwell') {
       // Stairwell: converging step lines suggesting stairs receding into wall
       const sDir = Math.sign(tickDy || tickDx);
@@ -196,10 +217,10 @@ const Renderer = {
     }
   },
 
-  _drawPadlock(cx, cy, dx, dy) {
+  _drawPadlock(cx, cy, dx, dy, col) {
     const ox = dx !== 0 ? dx * 14 : 0;
     const oy = dy !== 0 ? dy * 14 : 0;
-    stroke(C.COL_GAMEOVER); strokeWeight(1);
+    stroke(col || C.COL_GAMEOVER); strokeWeight(1);
     noFill();
     rect(cx + ox - 5, cy + oy - 3, 10, 8);
     arc(cx + ox, cy + oy - 3, 10, 8, Math.PI, 0);
@@ -238,6 +259,40 @@ const Renderer = {
     drawingContext.globalAlpha = 1;
     noStroke(); fill(C.COL_WIDE_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
     text('POWER SHOT', p.x, p.y + 20);
+  },
+
+  drawRagSymbol(room) {
+    if (!room || !room.ragSymbol || room.ragSymbol.collected) return;
+    const s     = room.ragSymbol;
+    const pulse = 0.72 + 0.28 * Math.sin(G.frame * 0.07);
+
+    textFont('monospace'); textSize(46); textAlign(CENTER, CENTER);
+
+    // Scratchy ghost copies — slightly offset, low alpha
+    drawingContext.globalAlpha = 0.22 * pulse;
+    noStroke(); fill(C.COL_RAG_SYMBOL);
+    for (const [jx, jy] of s.jitter) {
+      text(s.letter, s.x + jx, s.y + jy);
+    }
+
+    // Horizontal scratch lines through the glyph
+    drawingContext.globalAlpha = 0.4 * pulse;
+    stroke(C.COL_RAG_SYMBOL); strokeWeight(1);
+    for (const [x1, x2, dy] of s.scratches) {
+      line(s.x + x1, s.y + dy, s.x + x2, s.y + dy);
+    }
+
+    // Main letter: hollow (BG fill) with coloured outline
+    drawingContext.globalAlpha = pulse;
+    stroke(C.COL_RAG_SYMBOL); strokeWeight(1.5); fill(C.COL_BG);
+    text(s.letter, s.x, s.y);
+
+    // Outer glow ring
+    drawingContext.globalAlpha = 0.30 * pulse;
+    noFill(); stroke(C.COL_RAG_SYMBOL); strokeWeight(1.5);
+    circle(s.x, s.y, 48);
+
+    drawingContext.globalAlpha = 1;
   },
 
   // ── Transition slide ──────────────────────────────────────────────────
@@ -700,10 +755,25 @@ const Renderer = {
     fill(alive > 0 ? C.COL_HUD_TEXT : C.COL_DOOR_OPEN);
     text(`ENEMIES: ${alive}`, C.WIDTH - 20, 35);
 
-    // Boss room locked indicator
-    if (room && G.dungeon && G.dungeon.bossRoom && G.dungeon.bossRoom.bossDoorsLocked) {
-      fill(C.COL_GAMEOVER); textAlign(RIGHT, TOP); textSize(10);
-      text('BOSS ROOM LOCKED', C.WIDTH - 20, 52);
+    // RAG symbol collection status + boss door indicator
+    {
+      const rc = G.ragCollected;
+      const letters = ['R', 'A', 'G'];
+      const allDone = ragAllCollected();
+      textAlign(RIGHT, TOP); textSize(10);
+      // Draw each letter: bright if collected, dim if not
+      let tx = C.WIDTH - 20;
+      for (let i = letters.length - 1; i >= 0; i--) {
+        const l = letters[i];
+        const done = rc && rc[l];
+        fill(done ? C.COL_RAG_SYMBOL : '#553366');
+        text(l, tx, 52);
+        tx -= 14;
+      }
+      if (!allDone) {
+        fill(C.COL_GAMEOVER);
+        text('BOSS DOOR LOCKED', C.WIDTH - 64, 52);
+      }
     }
 
     // Room cleared flash
@@ -898,6 +968,12 @@ const Renderer = {
       fill(room.cleared || room.type === 'start' ? col : C.COL_DOOR_CLOSED);
       textFont('monospace'); textSize(8); textAlign(CENTER, CENTER);
       text(label, rx + cellW / 2, ry + cellH / 2);
+
+      // RAG symbol marker (small, in corner of cell)
+      if (room.ragSymbol && !room.ragSymbol.collected) {
+        fill(C.COL_RAG_SYMBOL); textSize(7);
+        text(room.ragSymbol.letter, rx + cellW - 4, ry + 5);
+      }
 
       // Pulsing player dot on current room
       if (isCurrent) {

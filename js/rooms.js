@@ -156,5 +156,34 @@ class DungeonGraph {
     this.avgEnemiesPerRoom = combatRooms.length
       ? combatRooms.reduce((s, r) => s + r.enemyCount, 0) / combatRooms.length
       : C.DROP_HEAL_BASELINE_ENEMIES;
+
+    // Assign RAG symbols (R, A, G) to 3 eligible rooms.
+    // Excluded: start, boss, the room directly adjacent to boss, treasure rooms.
+    const bossNeighbour = [...this.grid.values()].find(r =>
+      r !== bossRoom && Object.values(r.connections).includes(bossRoom)
+    );
+    const symbolPool = nonStart.filter(r =>
+      r !== bossRoom && r !== bossNeighbour && r.type !== 'treasure'
+    );
+    // Fisher-Yates shuffle
+    for (let i = symbolPool.length - 1; i > 0; i--) {
+      const j = randInt(0, i);
+      [symbolPool[i], symbolPool[j]] = [symbolPool[j], symbolPool[i]];
+    }
+    ['R', 'A', 'G'].forEach((letter, i) => {
+      if (i >= symbolPool.length) return;
+      symbolPool[i].ragSymbol = {
+        letter,
+        x:        C.WIDTH  / 2 + randFloat(-70, 70),
+        y:        C.HEIGHT / 2 + randFloat(-50, 50),
+        collected: false,
+        // 4 pre-computed jitter offsets for the scratchy ghost-copies
+        jitter:    Array.from({ length: 4 }, () => [randFloat(-4, 4), randFloat(-3, 3)]),
+        // 3 horizontal scratch lines: [xLeft, xRight, yOffset]
+        scratches: Array.from({ length: 3 }, () => [
+          randFloat(-16, -6), randFloat(6, 16), randFloat(-13, 13)
+        ]),
+      };
+    });
   }
 }

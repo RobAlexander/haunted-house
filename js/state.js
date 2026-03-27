@@ -23,6 +23,7 @@ const G = {
   deathParticles: [],
   shieldSparks:   [],
   drops:          [],
+  ragCollected:   { R: false, A: false, G: false },
   mapOpen:        false,
   newHighScore:    null,   // 1-based rank of last score, or null
   nameInput:       '',     // player name being typed on NAME_ENTRY screen
@@ -42,6 +43,7 @@ function startGame() {
   G.deathParticles = [];
   G.shieldSparks   = [];
   G.drops          = [];
+  G.ragCollected = { R: false, A: false, G: false };
   G.mapOpen         = false;
   G.newHighScore     = null;
   G.nameInput        = '';
@@ -180,10 +182,11 @@ function checkRoomExit() {
   if (!pl || !pl.alive || !rm || !rm.cleared) return;
 
   const P = C.ROOM_PADDING;
-  if (pl.pos.y < P            && rm.connections.north) { startRoomTransition('north'); return; }
-  if (pl.pos.y > C.HEIGHT - P && rm.connections.south) { startRoomTransition('south'); return; }
-  if (pl.pos.x > C.WIDTH  - P && rm.connections.east)  { startRoomTransition('east');  return; }
-  if (pl.pos.x < P            && rm.connections.west)  { startRoomTransition('west');  return; }
+  const _ragBlocked = c => c && c === G.dungeon.bossRoom && !ragAllCollected();
+  if (pl.pos.y < P            && rm.connections.north && !_ragBlocked(rm.connections.north)) { startRoomTransition('north'); return; }
+  if (pl.pos.y > C.HEIGHT - P && rm.connections.south && !_ragBlocked(rm.connections.south)) { startRoomTransition('south'); return; }
+  if (pl.pos.x > C.WIDTH  - P && rm.connections.east  && !_ragBlocked(rm.connections.east))  { startRoomTransition('east');  return; }
+  if (pl.pos.x < P            && rm.connections.west  && !_ragBlocked(rm.connections.west))  { startRoomTransition('west');  return; }
 
   // Stairwell: walk into it to advance to next floor
   if (rm.stairwell) {
@@ -229,6 +232,22 @@ function checkDropPickup() {
       G.drops.splice(i, 1);
       AudioEngine.playSFX('pickup');
     }
+  }
+}
+
+function ragAllCollected() {
+  return G.ragCollected.R && G.ragCollected.A && G.ragCollected.G;
+}
+
+function checkRagSymbols() {
+  const room = G.currentRoom;
+  if (!room || !room.ragSymbol || room.ragSymbol.collected) return;
+  const s = room.ragSymbol;
+  if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius,
+                    s.x, s.y, C.RAG_SYMBOL_COLLECT_R)) {
+    s.collected = true;
+    G.ragCollected[s.letter] = true;
+    AudioEngine.playSFX('pickup');
   }
 }
 

@@ -78,6 +78,7 @@ function draw() {
     }
 
     checkEliteShield();
+    checkRagSymbols();
     checkRoomCleared();
     checkRoomExit();
     checkPickup();

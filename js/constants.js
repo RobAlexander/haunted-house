@@ -138,4 +138,7 @@ const C = {
   COL_LUNGE_GHOST: '#ff4455',
   COL_GHOUL:       '#7b3f1e',
   COL_WIDE_PICKUP: '#44aaff',
+
+  COL_RAG_SYMBOL:      '#cc44ff',  // colour for R/A/G rune symbols
+  RAG_SYMBOL_COLLECT_R: 20,        // collection radius in px
 };
