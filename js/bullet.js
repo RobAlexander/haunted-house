@@ -67,6 +67,22 @@ class BulletPool {
       if (b.owner === 'player') {
         for (const e of enemies) {
           if (!e.alive) continue;
+
+          // Shield intercept: boss during phase transition, or elite shielded enemy.
+          // Shield radius is larger than the body, so a bullet reaching the body
+          // must pass through the shield first — only one check needed.
+          const shieldR = (e.type === 'boss' && e.transitionTimer > 0) ? e.radius + 18
+                        : e.shielded ? e.radius + 12
+                        : 0;
+          if (shieldR > 0) {
+            if (circleCollide(b.pos.x, b.pos.y, b.radius, e.pos.x, e.pos.y, shieldR)) {
+              _spawnShieldSparks(b.pos.x, b.pos.y, b.vel.x, b.vel.y);
+              b.deactivate();
+              break;
+            }
+            continue;  // shielded — don't check body
+          }
+
           if (circleCollide(b.pos.x, b.pos.y, b.radius, e.pos.x, e.pos.y, e.radius)) {
             e.takeDamage(b.damage);
             b.deactivate();
@@ -75,5 +91,24 @@ class BulletPool {
         }
       }
     }
+  }
+}
+
+// Spawn a small burst of yellow sparks at the bullet's impact point on a shield.
+// Sparks scatter roughly back along the bullet's travel direction.
+function _spawnShieldSparks(bx, by, bvx, bvy) {
+  const dir   = Math.atan2(bvy, bvx);
+  const speed = Math.hypot(bvx, bvy);
+  for (let i = 0; i < 6; i++) {
+    const spread = (Math.random() - 0.5) * Math.PI * 0.9;
+    const a = dir + Math.PI + spread;
+    const s = speed * (0.4 + Math.random() * 0.7);
+    G.shieldSparks.push({
+      x: bx, y: by,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life:    8 + Math.floor(Math.random() * 7),
+      maxLife: 15,
+    });
   }
 }

@@ -6,7 +6,8 @@ const AudioEngine = (() => {
   let ctx        = null;
   let master     = null;
   let reverb     = null;
-  let musicRunning = false;
+  let musicRunning  = false;
+  let victoryMode   = false;
 
   // Music nodes
   let drone1     = null;
@@ -96,6 +97,8 @@ const AudioEngine = (() => {
   function stopMusic() {
     if (!musicRunning) return;
     musicRunning = false;
+    bossMode     = false;
+    victoryMode  = false;
 
     clearTimeout(melodyTimeout);
     melodyTimeout = null;
@@ -106,6 +109,53 @@ const AudioEngine = (() => {
     drone1 = drone2 = lfo = droneGain = droneFilter = lfoGain = null;
   }
 
+  // Post-boss victory music: calmer, brighter, slightly upbeat
+  function startVictoryMusic() {
+    if (!ctx) return;
+    stopMusic();
+    musicRunning = true;
+    victoryMode  = true;
+
+    // Softer drone: triangle waves an octave up, open filter
+    droneFilter = ctx.createBiquadFilter();
+    droneFilter.type            = 'lowpass';
+    droneFilter.frequency.value = 520;
+    droneFilter.Q.value         = 0.7;
+
+    droneGain = ctx.createGain();
+    droneGain.gain.value = 0.05;
+
+    drone1 = ctx.createOscillator();
+    drone1.type            = 'triangle';
+    drone1.frequency.value = 110;
+    drone1.connect(droneFilter);
+
+    drone2 = ctx.createOscillator();
+    drone2.type            = 'triangle';
+    drone2.frequency.value = 110.6;
+    drone2.connect(droneFilter);
+
+    droneFilter.connect(droneGain);
+    droneGain.connect(reverb);
+    droneGain.connect(master);
+
+    drone1.start();
+    drone2.start();
+
+    // Lighter, faster LFO flutter (less oppressive than normal)
+    lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.022;
+
+    lfo = ctx.createOscillator();
+    lfo.type            = 'sine';
+    lfo.frequency.value = 2.1;
+    lfo.connect(lfoGain);
+    lfoGain.connect(droneGain.gain);
+    lfo.start();
+
+    _scheduleMelodyNote();
+  }
+
   function setBossMode(active) {
     if (!ctx || !lfo) return;
     bossMode = active;
@@ -113,12 +163,14 @@ const AudioEngine = (() => {
     droneFilter.frequency.setTargetAtTime(active ? 400 : 220, ctx.currentTime, 1.0);
   }
 
-  // F# minor pentatonic (eerie)
-  const PENTATONIC = [185, 220, 247, 277, 370, 440, 494, 554];
+  // F# minor pentatonic (eerie — normal + boss)
+  const PENTATONIC  = [185, 220, 247, 277, 370, 440, 494, 554];
+  // C major pentatonic (bright — post-boss victory)
+  const MAJOR_PENT  = [261, 329, 392, 440, 523, 659, 784];
 
   function _scheduleMelodyNote() {
     if (!musicRunning) return;
-    const delay = 2000 + Math.random() * 6000;
+    const delay = victoryMode ? 900 + Math.random() * 2200 : 2000 + Math.random() * 6000;
     melodyTimeout = setTimeout(() => {
       if (!musicRunning) return;
       _playMelodyNote();
@@ -128,17 +180,19 @@ const AudioEngine = (() => {
 
   function _playMelodyNote() {
     if (!ctx) return;
-    const freq   = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
+    const scale  = victoryMode ? MAJOR_PENT : PENTATONIC;
+    const freq   = scale[Math.floor(Math.random() * scale.length)];
     const type   = Math.random() < 0.5 ? 'sine' : 'triangle';
     const now    = ctx.currentTime;
-    const dur    = 0.4 + Math.random() * 0.4;
+    const dur    = victoryMode ? 0.18 + Math.random() * 0.28 : 0.4 + Math.random() * 0.4;
+    const vol    = victoryMode ? 0.09 : 0.06;
 
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type            = type;
     osc.frequency.value = freq * (bossMode ? 0.5 : 1);
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.06, now + 0.02);
+    gain.gain.linearRampToValueAtTime(vol, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
 
     osc.connect(gain);
@@ -537,5 +591,5 @@ const AudioEngine = (() => {
 
   // ── Public API ───────────────────────────────────────────────────────────
 
-  return { init, startMusic, stopMusic, setBossMode, playSFX };
+  return { init, startMusic, stopMusic, startVictoryMusic, setBossMode, playSFX };
 })();

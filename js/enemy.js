@@ -25,6 +25,7 @@ class GhostEnemy {
     // [dome height, left bulge, right bulge, right foot, centre foot, left foot]
     this.deform          = Array.from({ length: 6 }, () => randFloat(-1, 1));
     this.speedMult    = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.shielded     = false;
     // 30 % of ghosts are lunge variants (red, intermittent double-speed bursts)
     this.variant      = Math.random() < 0.3 ? 'lunge' : 'normal';
     this.lunging      = false;
@@ -115,6 +116,7 @@ class GhoulEnemy {
     this.leaping         = false;
     this.leapDuration    = 0;
     this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.shielded        = false;
     this.leapTimer       = randInt(C.GHOUL_LEAP_COOLDOWN_MIN, C.GHOUL_LEAP_COOLDOWN_MAX);
     this.crawlPhase = randFloat(0, Math.PI * 2);
     this.eyeOff     = 3.5 + randFloat(0, 2.5);
@@ -224,6 +226,7 @@ class SkullEnemy {
     this.type        = 'skull';
     this.scoreValue  = C.SCORE_SKULL;
     this.alive       = true;
+    this.shielded    = false;
     this.fireTimer   = randInt(30, C.SKULL_FIRE_RATE);
     this.facing      = 0;  // radians, toward player when firing
     // Eye/teeth variation: [leftEyeX, rightEyeX, jawY, toothSpread, unused]
@@ -518,8 +521,19 @@ function spawnGhouls(room) {
 
 // Main entry point called by state.js
 function spawnEnemies(room) {
-  if (room.type === 'boss')      return spawnBoss();
-  if (room.type === 'skull')  return [...spawnSkulls(room), ...spawnGhouls(room)];
-  if (room.type === 'mixed')  return [...spawnGhosts(room), ...spawnSkulls(room), ...spawnGhouls(room)];
-  return spawnGhosts(room);
+  let enemies;
+  if (room.type === 'boss')   enemies = spawnBoss();
+  else if (room.type === 'skull')  enemies = [...spawnSkulls(room), ...spawnGhouls(room)];
+  else if (room.type === 'mixed')  enemies = [...spawnGhosts(room), ...spawnSkulls(room), ...spawnGhouls(room)];
+  else                             enemies = spawnGhosts(room);
+
+  // Randomly designate one enemy as elite (shielded until all others die).
+  // Boss rooms are exempt. Probability ramps 20% at floor 2 → 30% at floor 5+.
+  if (room.type !== 'boss' && enemies.length >= 2 && G.floor >= 2) {
+    const chance = Math.min(0.30, 0.20 + (G.floor - 2) * (0.10 / 3));
+    if (Math.random() < chance) {
+      enemies[Math.floor(Math.random() * enemies.length)].shielded = true;
+    }
+  }
+  return enemies;
 }

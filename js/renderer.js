@@ -26,6 +26,7 @@ const Renderer = {
     this.drawDeathParticles(G.deathParticles);
     this.drawBullets(G.bullets);
     this.drawEnemies(G.enemies);
+    this.drawShieldSparks(G.shieldSparks);
     this.drawPlayer(G.player);
     this.drawCrosshair(mx, my);
     this.drawHUD();
@@ -275,6 +276,7 @@ const Renderer = {
   drawEnemies(enemies) {
     for (const e of enemies) {
       if (!e.alive) continue;
+      if (e.shielded) this._drawEnemyShield(e);
       if (e.type === 'ghost')    this._drawGhost(e);
       if (e.type === 'skull') this._drawSkull(e);
       if (e.type === 'boss')     this._drawBoss(e);
@@ -403,6 +405,19 @@ const Renderer = {
     drawingContext.globalAlpha = 1;
 
     this._drawEnemyHP(e, x, y - r - 8);
+  },
+
+  // Yellow shield bubble drawn under the enemy sprite
+  _drawEnemyShield(e) {
+    const x = e.pos.x, y = e.pos.y, r = e.radius + 12;
+    const pulse = 0.5 + 0.5 * Math.sin(G.frame * 0.18 + e.pos.x * 0.01);
+    drawingContext.globalAlpha = 0.18 + 0.12 * pulse;
+    noStroke(); fill('#ffee00');
+    circle(x, y, r * 2);
+    drawingContext.globalAlpha = 0.55 + 0.35 * pulse;
+    noFill(); stroke('#ffee00'); strokeWeight(2);
+    circle(x, y, r * 2);
+    drawingContext.globalAlpha = 1;
   },
 
   _drawBoss(e) {
@@ -577,6 +592,20 @@ const Renderer = {
       circle(p.x, p.y, r * 2);
       drawingContext.globalAlpha = 1;
     }
+  },
+
+  // ── Shield sparks ─────────────────────────────────────────────────────
+
+  drawShieldSparks(sparks) {
+    if (!sparks || !sparks.length) return;
+    for (const s of sparks) {
+      const t = 1 - s.life / s.maxLife;
+      drawingContext.globalAlpha = (1 - t) * 0.95;
+      stroke('#ffee00'); strokeWeight(2 - t * 1.2);
+      // Draw as a short streak trailing behind the spark's movement
+      line(s.x, s.y, s.x - s.vx * 0.7, s.y - s.vy * 0.7);
+    }
+    drawingContext.globalAlpha = 1;
   },
 
   // ── Enemy drops ───────────────────────────────────────────────────────

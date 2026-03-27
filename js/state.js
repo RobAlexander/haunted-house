@@ -21,6 +21,7 @@ const G = {
   clearedFlash:   0,
   floor:          1,
   deathParticles: [],
+  shieldSparks:   [],
   drops:          [],
   mapOpen:        false,
   newHighScore:    null,   // 1-based rank of last score, or null
@@ -39,6 +40,7 @@ function startGame() {
   G.transition     = null;
   G.clearedFlash   = 0;
   G.deathParticles = [];
+  G.shieldSparks   = [];
   G.drops          = [];
   G.mapOpen         = false;
   G.newHighScore     = null;
@@ -68,6 +70,7 @@ function enterRoom(room, fromDir) {
   room.visited     = true;
   G.bullets        = new BulletPool();
   G.drops          = [];
+  G.shieldSparks   = [];
 
   if (!room.cleared) {
     G.enemies = spawnEnemies(room);
@@ -159,6 +162,7 @@ function checkRoomCleared() {
     // Boss room cleared → open stairwell to next floor
     if (room.type === 'boss') {
       AudioEngine.playSFX('win');
+      AudioEngine.startVictoryMusic();
       const dirs = ['north', 'south', 'east', 'west'];
       const opp  = { north: 'south', south: 'north', east: 'west', west: 'east' };
       const entryDir = dirs.find(d => room.connections[d]);
@@ -233,8 +237,24 @@ function tickParticles() {
     p.life--;
     if (p.life <= 0) G.deathParticles.splice(i, 1);
   }
+  for (let i = G.shieldSparks.length - 1; i >= 0; i--) {
+    const s = G.shieldSparks[i];
+    s.x += s.vx; s.y += s.vy;
+    s.vx *= 0.82; s.vy *= 0.82;
+    s.life--;
+    if (s.life <= 0) G.shieldSparks.splice(i, 1);
+  }
   for (let i = G.drops.length - 1; i >= 0; i--) {
     G.drops[i].life--;
     if (G.drops[i].life <= 0) G.drops.splice(i, 1);
+  }
+}
+
+// Drop the elite shield when all non-shielded enemies in the room are dead
+function checkEliteShield() {
+  for (const e of G.enemies) {
+    if (!e.alive || !e.shielded) continue;
+    const othersAlive = G.enemies.some(o => o !== e && o.alive && !o.shielded);
+    if (!othersAlive) e.shielded = false;
   }
 }
