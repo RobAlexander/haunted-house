@@ -72,24 +72,26 @@ function enterRoom(room, fromDir) {
   G.drops          = [];
   G.shieldSparks   = [];
 
+  // Compute player entry position first so spawn logic can exclude it
+  const P = C.ROOM_PADDING + C.PLAYER_RADIUS + 8;
+  const entryPositions = {
+    north: { x: C.WIDTH / 2, y: C.HEIGHT - P },
+    south: { x: C.WIDTH / 2, y: P            },
+    east:  { x: P,           y: C.HEIGHT / 2 },
+    west:  { x: C.WIDTH - P, y: C.HEIGHT / 2 },
+  };
+  const entryPos = fromDir !== null ? entryPositions[fromDir] : { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+
   if (!room.cleared) {
-    G.enemies = spawnEnemies(room);
+    G.enemies = spawnEnemies(room, entryPos.x, entryPos.y);
   } else {
     G.enemies = [];
   }
 
   // Reposition player at the entry door
   if (fromDir !== null) {
-    const P = C.ROOM_PADDING + C.PLAYER_RADIUS + 8;
-    const positions = {
-      north: { x: C.WIDTH / 2, y: C.HEIGHT - P },
-      south: { x: C.WIDTH / 2, y: P            },
-      east:  { x: P,           y: C.HEIGHT / 2 },
-      west:  { x: C.WIDTH - P, y: C.HEIGHT / 2 },
-    };
-    const pos       = positions[fromDir];
-    G.player.pos.x  = pos.x;
-    G.player.pos.y  = pos.y;
+    G.player.pos.x = entryPos.x;
+    G.player.pos.y = entryPos.y;
   }
 
   // Treasure room: grant pickup immediately on first visit

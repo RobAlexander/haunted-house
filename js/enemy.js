@@ -470,35 +470,39 @@ function _spawnZone(_room) {
   };
 }
 
-function _validPos(x, y, radius, room, safeR) {
+function _validPos(x, y, radius, room, safeR, px, py) {
   const dx = x - C.WIDTH / 2, dy = y - C.HEIGHT / 2;
   if (dx * dx + dy * dy < safeR * safeR) return false;
+  if (px !== undefined) {
+    const epx = x - px, epy = y - py;
+    if (epx * epx + epy * epy < C.ENEMY_SPAWN_PLAYER_SAFE_R * C.ENEMY_SPAWN_PLAYER_SAFE_R) return false;
+  }
   for (const obs of room.obstacles) {
     if (circleRectCollide(x, y, radius + 8, obs.x, obs.y, obs.w, obs.h)) return false;
   }
   return true;
 }
 
-function spawnGhosts(room) {
+function spawnGhosts(room, px, py) {
   const ghosts = [];
   const count  = room.enemyCount !== undefined ? room.enemyCount : C.GHOST_COUNT;
   const z      = _spawnZone(room);
   for (let i = 0; i < count * 15 && ghosts.length < count; i++) {
     const x = randFloat(z.minX, z.maxX);
     const y = randFloat(z.minY, z.maxY);
-    if (_validPos(x, y, C.GHOST_RADIUS, room, 110)) ghosts.push(new GhostEnemy(x, y));
+    if (_validPos(x, y, C.GHOST_RADIUS, room, 110, px, py)) ghosts.push(new GhostEnemy(x, y));
   }
   return ghosts;
 }
 
-function spawnSkulls(room) {
+function spawnSkulls(room, px, py) {
   const skulls = [];
   const count  = Math.max(1, Math.floor(room.enemyCount / 2));
   const z      = _spawnZone(room);
   for (let i = 0; i < count * 15 && skulls.length < count; i++) {
     const x = randFloat(z.minX, z.maxX);
     const y = randFloat(z.minY, z.maxY);
-    if (_validPos(x, y, C.SKULL_RADIUS, room, 120)) skulls.push(new SkullEnemy(x, y));
+    if (_validPos(x, y, C.SKULL_RADIUS, room, 120, px, py)) skulls.push(new SkullEnemy(x, y));
   }
   return skulls;
 }
@@ -507,25 +511,26 @@ function spawnBoss() {
   return [new BossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
 }
 
-function spawnGhouls(room) {
+function spawnGhouls(room, px, py) {
   const ghouls = [];
   const count  = Math.max(1, Math.floor(room.enemyCount / 3));
   const z      = _spawnZone(room);
   for (let i = 0; i < count * 15 && ghouls.length < count; i++) {
     const x = randFloat(z.minX, z.maxX);
     const y = randFloat(z.minY, z.maxY);
-    if (_validPos(x, y, C.GHOUL_RADIUS, room, 120)) ghouls.push(new GhoulEnemy(x, y));
+    if (_validPos(x, y, C.GHOUL_RADIUS, room, 120, px, py)) ghouls.push(new GhoulEnemy(x, y));
   }
   return ghouls;
 }
 
-// Main entry point called by state.js
-function spawnEnemies(room) {
+// Main entry point called by state.js.
+// px/py is the player's entry position so enemies don't spawn on top of them.
+function spawnEnemies(room, px, py) {
   let enemies;
-  if (room.type === 'boss')   enemies = spawnBoss();
-  else if (room.type === 'skull')  enemies = [...spawnSkulls(room), ...spawnGhouls(room)];
-  else if (room.type === 'mixed')  enemies = [...spawnGhosts(room), ...spawnSkulls(room), ...spawnGhouls(room)];
-  else                             enemies = spawnGhosts(room);
+  if (room.type === 'boss')        enemies = spawnBoss();
+  else if (room.type === 'skull')  enemies = [...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py)];
+  else if (room.type === 'mixed')  enemies = [...spawnGhosts(room, px, py), ...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py)];
+  else                             enemies = spawnGhosts(room, px, py);
 
   // Randomly designate one enemy as elite (shielded until all others die).
   // Boss rooms are exempt. Probability ramps 20% at floor 2 → 30% at floor 5+.

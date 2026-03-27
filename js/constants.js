@@ -57,6 +57,9 @@ const C = {
   SCORE_SKULL: 25,
   SCORE_BOSS:     200,
 
+  // Spawn safety
+  ENEMY_SPAWN_PLAYER_SAFE_R: 150,  // min px between any enemy spawn and the player's entry point
+
   // Dungeon
   MIN_ROOMS:         7,
   MAX_ROOMS:         14,
@@ -126,9 +129,10 @@ const C = {
   DROP_HEAL_BASELINE_ENEMIES:  2.5,  // expected avg enemies/room on floor 1 (anchor for drop-rate scaling)
 
   // SFX volumes (0–1)
-  SFX_VOL_SHOOT: 0.05,
-  SFX_VOL_HIT:   0.52,
-  SFX_VOL_DEATH: 0.2,
+  SFX_VOL_SHOOT:       0.05,
+  SFX_VOL_HIT:         0.52,
+  SFX_VOL_DEATH:       0.2,
+  SFX_VOL_GHOST_LUNGE: 2.0,   // scale factor for red ghost lunge "hoooo" (1.0 = as designed)
 
   // New colors
   COL_LUNGE_GHOST: '#ff4455',
