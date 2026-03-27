@@ -158,10 +158,12 @@ const AudioEngine = (() => {
       case 'death':      _sfxDeath(now);     break;
       case 'room_enter': _sfxRoomEnter(now); break;
       case 'pickup':     _sfxPickup(now);    break;
+      case 'ghost_lunge': _sfxGhostLunge(now); break;
+      case 'ghoul_leap':  _sfxGhoulLeap(now);  break;
       case 'boss_enter':  _sfxBossEnter(now);  break;
       case 'boss_phase':  _sfxBossPhase(now);  break;
       case 'game_over':   _sfxGameOver(now);   break;
-      case 'win':        _sfxWin(now);       break;
+      case 'win':         _sfxWin(now);        break;
     }
   }
 
@@ -399,6 +401,88 @@ const AudioEngine = (() => {
       lfo.start(now + 0.15); lfo.stop(now + dur + 0.1);
       osc.start(now + 0.15); osc.stop(now + dur + 0.1);
     }
+  }
+
+  // Ghostly "hoooo" — smooth sine glide, breathy and eerie
+  function _sfxGhostLunge(now) {
+    // Core "hoo" tone: sine rises gently then settles, like an exhaled vowel
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.linearRampToValueAtTime(290, now + 0.25);
+    osc.frequency.linearRampToValueAtTime(230, now + 0.65);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.20, now + 0.18);
+    g.gain.linearRampToValueAtTime(0.15, now + 0.45);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+    osc.connect(g); g.connect(reverb);
+    osc.start(now); osc.stop(now + 0.8);
+
+    // Breathy noise layer — bandpass filtered around the same pitch region
+    const bufLen = Math.ceil(ctx.sampleRate * 0.65);
+    const buf    = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data   = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'bandpass';
+    flt.frequency.setValueAtTime(260, now);
+    flt.Q.value = 1.2;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.001, now);
+    ng.gain.linearRampToValueAtTime(0.08, now + 0.2);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    noise.connect(flt); flt.connect(ng); ng.connect(reverb);
+    noise.start(now); noise.stop(now + 0.7);
+
+    // Faint upper harmonic — adds a ghostly "hollow" quality
+    const osc2 = ctx.createOscillator();
+    const g2   = ctx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(580, now + 0.05);
+    osc2.frequency.linearRampToValueAtTime(460, now + 0.6);
+    g2.gain.setValueAtTime(0.001, now + 0.05);
+    g2.gain.linearRampToValueAtTime(0.04, now + 0.25);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc2.connect(g2); g2.connect(reverb);
+    osc2.start(now + 0.05); osc2.stop(now + 0.7);
+  }
+
+  // Weird squealing leap — rapid pitch slide with tremolo flutter
+  function _sfxGhoulLeap(now) {
+    // Main squeal: sawtooth rockets up then drops, like a panicked animal
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(380, now);
+    osc.frequency.linearRampToValueAtTime(1050, now + 0.10);
+    osc.frequency.exponentialRampToValueAtTime(520, now + 0.38);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.16, now + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+    osc.connect(g); g.connect(master);
+    osc.start(now); osc.stop(now + 0.45);
+
+    // Tremolo layer: rapid LFO amplitude flutter adds "weird" organic quality
+    const osc2  = ctx.createOscillator();
+    const lfo   = ctx.createOscillator();
+    const lfoG  = ctx.createGain();
+    const g2    = ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(700, now + 0.03);
+    osc2.frequency.linearRampToValueAtTime(1300, now + 0.15);
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(32, now);
+    lfoG.gain.setValueAtTime(0.07, now);
+    lfo.connect(lfoG); lfoG.connect(g2.gain);
+    g2.gain.setValueAtTime(0.001, now + 0.03);
+    g2.gain.linearRampToValueAtTime(0.10, now + 0.10);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc2.connect(g2); g2.connect(reverb);
+    lfo.start(now); lfo.stop(now + 0.4);
+    osc2.start(now + 0.03); osc2.stop(now + 0.4);
   }
 
   // Slow descending minor chord

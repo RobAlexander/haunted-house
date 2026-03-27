@@ -51,7 +51,7 @@ class GhostEnemy {
       this.vel.y = n.y * C.GHOST_SPEED * this.speedMult;
       if (this.variant === 'lunge') {
         this.lungeTimer--;
-        if (this.lungeTimer <= 0) { this.lunging = true; this.lungeDuration = 32; }
+        if (this.lungeTimer <= 0) { this.lunging = true; this.lungeDuration = 32; AudioEngine.playSFX('ghost_lunge'); }
       }
     }
 
@@ -164,7 +164,7 @@ class GhoulEnemy {
       // Trigger leap when close enough
       if (dist < C.GHOUL_LEAP_RANGE) {
         this.leapTimer--;
-        if (this.leapTimer <= 0) { this.leaping = true; this.leapDuration = 18; }
+        if (this.leapTimer <= 0) { this.leaping = true; this.leapDuration = 18; AudioEngine.playSFX('ghoul_leap'); }
       }
     }
 
@@ -228,10 +228,13 @@ class SkullEnemy {
     this.facing      = 0;  // radians, toward player when firing
     // Eye/teeth variation: [leftEyeX, rightEyeX, jawY, toothSpread, unused]
     this.deform      = Array.from({ length: 5 }, () => randFloat(-1, 1));
-    // Pre-computed irregular head outline: 7 radial offsets from centre
+    // Pre-computed irregular head outline: 7 points with skull-like silhouette
+    // (wide cranium at top, narrowing to jaw at bottom) + small random jitter
     this.headPts = Array.from({ length: 7 }, (_, i) => {
       const angle = (Math.PI * 2 / 7) * i - Math.PI / 2;
-      const r     = 11 + randFloat(-3.5, 3.5);
+      const baseR = 10.5 + 2.0 * Math.max(0, -Math.sin(angle))  // cranium bulge at top
+                         - 2.5 * Math.max(0,  Math.sin(angle));  // jaw narrows at bottom
+      const r     = baseR + randFloat(-1.2, 1.2);
       return [Math.cos(angle) * r, Math.sin(angle) * r];
     });
   }
