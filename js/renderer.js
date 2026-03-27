@@ -35,7 +35,7 @@ const Renderer = {
     if (G.state === STATES.NAME_ENTRY)     this.drawNameEntry();
     if (G.state === STATES.GAME_OVER)      this.drawGameOver();
     if (G.state === STATES.WIN)            this.drawWin();
-    if (G.escConfirm)                      this.drawEscConfirm();
+    if (G.state === STATES.PAUSED)         this.drawPaused();
     if (G.devConsole.open)                 this.drawDevConsole();
   },
 
@@ -60,16 +60,17 @@ const Renderer = {
     // High score table
     const scores = HighScores.get();
     if (scores.length > 0) {
-      const tx = C.WIDTH / 2, ty = C.HEIGHT / 2 + 108;
+      const cx = C.WIDTH / 2, ty = C.HEIGHT / 2 + 108;
       noStroke(); fill(C.COL_HUD_TITLE); textSize(10); textAlign(CENTER, TOP);
-      text('─── HIGH SCORES ───', tx, ty);
-      textSize(11);
+      text('─── HIGH SCORES ───', cx, ty);
+      const lx = cx - 118;
+      textSize(11); textAlign(LEFT, TOP);
       for (let i = 0; i < scores.length; i++) {
         const { score, floor, name } = scores[i];
         const isNew  = G.newHighScore === i + 1;
         const label  = (name || 'unknown').padEnd(12).slice(0, 12);
         fill(isNew ? C.COL_CLEARED : C.COL_HUD_TEXT);
-        text(`#${i + 1}  ${label}  ${String(score).padStart(6)}  fl.${floor}`, tx, ty + 16 + i * 16);
+        text(`#${i + 1}  ${label}  ${String(score).padStart(6)}  floor ${floor}`, lx, ty + 16 + i * 16);
       }
     }
   },
@@ -99,12 +100,13 @@ const Renderer = {
     for (let x = P; x <= W-P; x += C.FLOOR_GRID_SIZE) line(x, P, x, H-P);
     for (let y = P; y <= H-P; y += C.FLOOR_GRID_SIZE) line(P, y, W-P, y);
 
-    // Walls with door gaps
+    // Walls with door gaps (stairwell treated as a pseudo-connection)
+    const _sw = dir => room.stairwell === dir ? { type: 'stairwell' } : null;
     stroke(C.COL_WALL); strokeWeight(2);
-    this._drawWall(P, P,   W-P, P,   true,  room.connections.north, room, 0,  -10);
-    this._drawWall(P, H-P, W-P, H-P, true,  room.connections.south, room, 0,   10);
-    this._drawWall(W-P, P, W-P, H-P, false, room.connections.east,  room, 10,   0);
-    this._drawWall(P,   P, P,   H-P, false, room.connections.west,  room, -10,  0);
+    this._drawWall(P, P,   W-P, P,   true,  room.connections.north || _sw('north'), room, 0,  -10);
+    this._drawWall(P, H-P, W-P, H-P, true,  room.connections.south || _sw('south'), room, 0,   10);
+    this._drawWall(W-P, P, W-P, H-P, false, room.connections.east  || _sw('east'),  room, 10,   0);
+    this._drawWall(P,   P, P,   H-P, false, room.connections.west  || _sw('west'),  room, -10,  0);
 
     // Corners
     const cs = 14;
@@ -148,6 +150,29 @@ const Renderer = {
       stroke(C.COL_DOOR_CLOSED); strokeWeight(2);
       if (isHoriz) line(mid - DH, y1, mid + DH, y1);
       else         line(x1, mid - DH, x1, mid + DH);
+    } else if (connection.type === 'stairwell') {
+      // Stairwell: converging step lines suggesting stairs receding into wall
+      const sDir = Math.sign(tickDy || tickDx);
+      stroke(C.COL_WIN); strokeWeight(1.5);
+      for (let i = 0; i < 5; i++) {
+        const len = DH * (1 - (i + 1) * 0.13);
+        const off = (i + 1) * 7 * sDir;
+        if (isHoriz) line(mid - len, y1 + off, mid + len, y1 + off);
+        else         line(x1 + off, mid - len, x1 + off, mid + len);
+      }
+      // Side rails converging inward
+      strokeWeight(1); drawingContext.globalAlpha = 0.55;
+      if (isHoriz) {
+        line(mid - DH, y1, mid - DH * 0.35, y1 + 35 * sDir);
+        line(mid + DH, y1, mid + DH * 0.35, y1 + 35 * sDir);
+      } else {
+        line(x1, mid - DH, x1 + 35 * sDir, mid - DH * 0.35);
+        line(x1, mid + DH, x1 + 35 * sDir, mid + DH * 0.35);
+      }
+      drawingContext.globalAlpha = 1;
+      noStroke(); fill(C.COL_WIN); textSize(9); textAlign(CENTER, CENTER);
+      if (isHoriz) text('NEXT FLOOR', mid, y1 + tickDy * 2.5);
+      else         text('NEXT FLOOR', x1 + tickDx * 2.5, mid);
     } else {
       // Open: tick marks
       const doorCol = connection.type === 'boss' ? C.COL_BOSS : C.COL_DOOR_OPEN;
@@ -155,7 +180,6 @@ const Renderer = {
       if (isHoriz) {
         line(mid-DH, y1, mid-DH+tickDx, y1+tickDy);
         line(mid+DH, y1, mid+DH+tickDx, y1+tickDy);
-        // Boss room label above/below the gap
         if (connection.type === 'boss') {
           noStroke(); fill(C.COL_BOSS); textSize(9); textAlign(CENTER, CENTER);
           text('BOSS', mid, y1 + tickDy * 2.5);
@@ -212,7 +236,7 @@ const Renderer = {
     rect(p.x - 22, p.y - 3, 44, 6, 1);
     drawingContext.globalAlpha = 1;
     noStroke(); fill(C.COL_WIDE_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
-    text('WIDE SHOT', p.x, p.y + 20);
+    text('POWER SHOT', p.x, p.y + 20);
   },
 
   // ── Transition slide ──────────────────────────────────────────────────
@@ -252,7 +276,7 @@ const Renderer = {
     for (const e of enemies) {
       if (!e.alive) continue;
       if (e.type === 'ghost')    this._drawGhost(e);
-      if (e.type === 'skeleton') this._drawSkeleton(e);
+      if (e.type === 'skull') this._drawSkull(e);
       if (e.type === 'boss')     this._drawBoss(e);
       if (e.type === 'ghoul')    this._drawGhoul(e);
     }
@@ -294,31 +318,39 @@ const Renderer = {
     drawingContext.globalAlpha = 1.0;
   },
 
-  _drawSkeleton(e) {
+  _drawSkull(e) {
     const x = e.pos.x, y = e.pos.y;
-    const d = e.deform;  // [craniumR, leftEyeX, rightEyeX, jawY, toothSpread]
+    const d  = e.deform;   // [leftEyeX, rightEyeX, jawY, toothSpread, _]
+    const cy = y - 1;
 
-    // Cranium — slightly deformed radius and centre
-    noFill(); stroke(C.COL_SKELETON); strokeWeight(1.5);
-    circle(x, y - 1, 22 + d[0] * 2);
+    // Irregular head outline using pre-computed per-instance vertex offsets
+    noFill(); stroke(C.COL_SKULL); strokeWeight(1.5);
+    const hp = e.headPts;
+    const n  = hp.length;
+    beginShape();
+    curveVertex(x + hp[n-1][0], cy + hp[n-1][1]);
+    for (const [ox, oy] of hp) curveVertex(x + ox, cy + oy);
+    curveVertex(x + hp[0][0], cy + hp[0][1]);
+    curveVertex(x + hp[1][0], cy + hp[1][1]);
+    endShape(CLOSE);
 
-    // Eye sockets: offset per-instance
-    const lex = x - 5 + d[1] * 1.5, rex = x + 5 + d[2] * 1.5, ey = y - 4;
+    // Eye sockets
+    const lex = x - 5 + d[0] * 1.5, rex = x + 5 + d[1] * 1.5, ey = cy - 4;
     noStroke(); fill(C.COL_BG);
     circle(lex, ey, 7);
     circle(rex, ey, 7);
 
     const glow = 0.55 + 0.45 * Math.sin(G.frame * 0.09 + x * 0.02);
     drawingContext.globalAlpha = glow;
-    fill(C.COL_SKELETON);
+    fill(C.COL_SKULL);
     circle(lex, ey, 3.5);
     circle(rex, ey, 3.5);
     drawingContext.globalAlpha = 1;
 
-    // Teeth — jaw Y and spacing deformed
-    noFill(); stroke(C.COL_SKELETON); strokeWeight(1.5);
-    const ty = y + 6 + d[3] * 1.5;
-    const ts = 5 + d[4];
+    // Teeth
+    noFill(); stroke(C.COL_SKULL); strokeWeight(1.5);
+    const ty = cy + 6 + d[2] * 1.5;
+    const ts = 5 + d[3];
     for (let i = -1; i <= 1; i++) {
       line(x + i * ts, ty, x + i * ts, ty + 4);
     }
@@ -328,31 +360,46 @@ const Renderer = {
 
   _drawGhoul(e) {
     const x = e.pos.x, y = e.pos.y, r = e.radius;
-    const p = e.crawlPhase;
-    const d = e.deform;  // [bodyW, bodyH, limb0..3 angle offsets]
+    const p   = e.crawlPhase;
     const col = C.COL_GHOUL;
 
-    // Flattened oval body — width/height deformed per-instance
+    // Irregular body outline using pre-computed per-instance vertex offsets
     noFill(); stroke(col); strokeWeight(1.5);
-    ellipse(x, y, r * (2.4 + d[0] * 0.3), r * (1.5 + d[1] * 0.2));
+    const bp = e.bodyPts, bn = bp.length;
+    beginShape();
+    curveVertex(x + bp[bn-1][0]*r, y + bp[bn-1][1]*r);
+    for (const [ox, oy] of bp) curveVertex(x + ox*r, y + oy*r);
+    curveVertex(x + bp[0][0]*r, y + bp[0][1]*r);
+    curveVertex(x + bp[1][0]*r, y + bp[1][1]*r);
+    endShape(CLOSE);
 
-    // Four claw-limbs — base angles offset per-instance, then animated
-    const baseAngles = [-Math.PI/4, Math.PI/4, Math.PI*0.75, Math.PI*1.25];
-    const animSigns  = [1, -1, 1, -1];
+    // Jointed legs — each leg's structure is unique per instance
+    const animSigns = [1, -1, 1, -1];
     strokeWeight(1.5);
     for (let i = 0; i < 4; i++) {
-      const a  = baseAngles[i] + d[2 + i] * 0.3 + animSigns[i] * Math.sin(p) * 0.25;
-      const ex = x + Math.cos(a) * r * 1.05;
-      const ey = y + Math.sin(a) * r * 0.7;
-      line(ex, ey, ex + Math.cos(a) * 9, ey + Math.sin(a) * 9);
+      const leg  = e.legs[i];
+      const anim = animSigns[i] * Math.sin(p) * 0.25;
+      let dir = leg.dir + anim;
+      let cx  = x + Math.cos(dir) * r * 1.05;
+      let cy  = y + Math.sin(dir) * r * 0.7;
+      for (let k = 0; k < leg.segLens.length; k++) {
+        if (k > 0) dir += leg.bends[k - 1];
+        const nx = cx + Math.cos(dir) * leg.segLens[k];
+        const ny = cy + Math.sin(dir) * leg.segLens[k];
+        line(cx, cy, nx, ny);
+        if (k < leg.bends.length) {
+          strokeWeight(3); point(nx, ny); strokeWeight(1.5);
+        }
+        cx = nx; cy = ny;
+      }
     }
 
-    // Eyes — brighter and solid when leaping
+    // Eyes — spacing per-instance; brighter when leaping
     const eyeAlpha = e.leaping ? 1.0 : 0.65;
     drawingContext.globalAlpha = eyeAlpha;
     noStroke(); fill(col);
-    circle(x - 4, y - 2, 5);
-    circle(x + 4, y - 2, 5);
+    circle(x - e.eyeOff, y - 2, 5);
+    circle(x + e.eyeOff, y - 2, 5);
     drawingContext.globalAlpha = 1;
 
     this._drawEnemyHP(e, x, y - r - 8);
@@ -367,6 +414,19 @@ const Renderer = {
     const pulseSpeed = 0.07 + phase * 0.045;
     const baseAlpha  = 0.45 + phase * 0.15;
     const glow = baseAlpha + (1 - baseAlpha) * (0.5 + 0.5 * Math.sin(G.frame * pulseSpeed));
+
+    // Phase transition: yellow invulnerability glow
+    if (e.transitionTimer > 0) {
+      const tf = e.transitionTimer / C.BOSS_PHASE_TRANSITION_FRAMES;
+      const pulse = 0.5 + 0.5 * Math.sin(G.frame * 0.25);
+      drawingContext.globalAlpha = tf * (0.5 + 0.4 * pulse);
+      noStroke(); fill('#ffee00');
+      circle(x, y, (r + 18) * 2);
+      drawingContext.globalAlpha = tf * (0.7 + 0.3 * pulse);
+      noFill(); stroke('#ffee00'); strokeWeight(2.5);
+      circle(x, y, (r + 14) * 2);
+      drawingContext.globalAlpha = 1;
+    }
 
     // Phase halo — dim red wash, intensifies at phase 2 and 3
     if (phase > 1) {
@@ -469,15 +529,37 @@ const Renderer = {
 
     noFill(); stroke(C.COL_PLAYER); strokeWeight(1.5);
 
-    // Body: ellipse wider shoulder-to-shoulder (y) than front-to-back (x)
-    ellipse(0, 0, 15, 22);
+    // Body: per-instance irregular spline
+    const bp = player.bodyPts, bn = bp.length;
+    beginShape();
+    curveVertex(bp[bn-1][0], bp[bn-1][1]);
+    for (const [bx, by] of bp) curveVertex(bx, by);
+    curveVertex(bp[0][0], bp[0][1]);
+    curveVertex(bp[1][0], bp[1][1]);
+    endShape(CLOSE);
 
-    // Head: small circle at front, just overlapping the body edge
-    circle(10, 0, 8);
+    // Head: per-instance irregular spline
+    const hp = player.headPts, hn = hp.length;
+    beginShape();
+    curveVertex(hp[hn-1][0], hp[hn-1][1]);
+    for (const [hx, hy] of hp) curveVertex(hx, hy);
+    curveVertex(hp[0][0], hp[0][1]);
+    curveVertex(hp[1][0], hp[1][1]);
+    endShape(CLOSE);
 
-    // Gun arm: from right shoulder forward
+    // Rifle: straight, always pointing forward along +x
     stroke(C.COL_AIM_LINE); strokeWeight(2);
-    line(2, 10, 22, 10);
+    line(-2, 7, 26, 7);
+
+    // Arms: each has one joint; grip endpoints are fixed on the gun
+    stroke(C.COL_PLAYER); strokeWeight(1.5);
+    const [rjx, rjy] = player.rearArmJoint;
+    line(3, 9, rjx, rjy);  strokeWeight(2.5); point(rjx, rjy);  strokeWeight(1.5);
+    line(rjx, rjy, 6, 7);
+
+    const [fjx, fjy] = player.frontArmJoint;
+    line(1, -9, fjx, fjy);  strokeWeight(2.5); point(fjx, fjy);  strokeWeight(1.5);
+    line(fjx, fjy, 17, 7);
 
     pop();
   },
@@ -486,6 +568,7 @@ const Renderer = {
 
   drawDeathParticles(particles) {
     for (const p of particles) {
+      if (p.delay > 0) continue;
       const t     = 1 - p.life / p.maxLife;
       const r     = p.radius + (p.maxRadius - p.radius) * t;
       const alpha = (1 - t) * 0.85;
@@ -567,12 +650,12 @@ const Renderer = {
     noStroke(); fill(C.COL_HUD_TEXT); textSize(10); textAlign(LEFT, TOP);
     text(`HP  ${p.hp} / ${p.maxHp}`, bx, by + bh + 3);
 
-    // Wide-shot ammo counter
+    // Power-shot ammo counter
     if (p.wideShots > 0) {
       const ax = bx, ay = by + bh + 18;
       noStroke(); fill(C.COL_WIDE_PICKUP); textSize(9); textAlign(LEFT, TOP);
-      text('WIDE', ax, ay);
-      const bulW = 13, bulH = 6, gap = 3, startX = ax + 32;
+      text('POWER', ax, ay);
+      const bulW = 13, bulH = 6, gap = 3, startX = ax + 38;
       for (let i = 0; i < p.wideShots; i++) {
         noFill(); stroke(C.COL_WIDE_PICKUP); strokeWeight(1.5);
         rect(startX + i * (bulW + gap), ay, bulW, bulH, 1);
@@ -581,7 +664,7 @@ const Renderer = {
 
     // Room info (top right)
     const room = G.currentRoom;
-    textAlign(RIGHT, TOP); textSize(11);
+    noStroke(); textAlign(RIGHT, TOP); textSize(11);
     fill(C.COL_HUD_TEXT);
     text(`FLOOR: ${G.floor}  DEPTH: ${room ? room.depth : 0}`, C.WIDTH - 20, 20);
     const alive = G.enemies.filter(e => e.alive).length;
@@ -615,16 +698,16 @@ const Renderer = {
 
   // ── Overlays ──────────────────────────────────────────────────────────
 
-  drawEscConfirm() {
+  drawPaused() {
     noStroke(); fill(0, 0, 0, 170); rect(0, 0, C.WIDTH, C.HEIGHT);
-    fill(C.COL_HUD_TEXT); textFont('monospace'); textSize(20);
+    fill(C.COL_HUD_TEXT); textFont('monospace'); textSize(32);
     textAlign(CENTER, CENTER);
-    text('Return to title screen?', C.WIDTH / 2, C.HEIGHT / 2 - 18);
+    text('PAUSED', C.WIDTH / 2, C.HEIGHT / 2 - 22);
     textSize(14);
-    fill(C.COL_GAMEOVER);
-    text('ESC  to confirm', C.WIDTH / 2, C.HEIGHT / 2 + 14);
     fill(C.COL_HUD_TEXT);
-    text('any other key to cancel', C.WIDTH / 2, C.HEIGHT / 2 + 36);
+    text('P  to resume', C.WIDTH / 2, C.HEIGHT / 2 + 14);
+    fill(C.COL_GAMEOVER);
+    text('ESC  to quit to menu', C.WIDTH / 2, C.HEIGHT / 2 + 36);
   },
 
   drawGameOver() {
@@ -677,7 +760,7 @@ const Renderer = {
     const TYPE_COL = {
       start:    C.COL_PLAYER,
       ghost:    C.COL_GHOST,
-      skeleton: C.COL_SKELETON,
+      skull: C.COL_SKULL,
       mixed:    '#ff9922',
       boss:     C.COL_BOSS,
       treasure: C.COL_PICKUP,
@@ -802,7 +885,7 @@ const Renderer = {
       { col: C.COL_PLAYER,      label: 'start'    },
       { col: C.COL_GHOST,       label: 'ghost'    },
       { col: C.COL_LUNGE_GHOST, label: 'lunge ghost' },
-      { col: C.COL_SKELETON,    label: 'skeleton' },
+      { col: C.COL_SKULL,    label: 'skull' },
       { col: C.COL_GHOUL,       label: 'ghoul'    },
       { col: '#ff9922',         label: 'mixed'    },
       { col: C.COL_BOSS,        label: 'boss'     },

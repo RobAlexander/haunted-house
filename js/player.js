@@ -7,8 +7,33 @@ class Player {
     this.fireCooldown     = 0;
     this.radius           = C.PLAYER_RADIUS;
     this.invincibleFrames = 0;
-    this.alive            = true;
-    this.wideShots        = 0;
+    this.alive     = true;
+    this.wideShots = 0;
+
+    // Sprite deformation — rerolled each game
+    // Body: 8-point spline, mild radial variation on a 7.5×11 ellipse
+    this.bodyPts = Array.from({ length: 8 }, (_, i) => {
+      const a = (Math.PI * 2 / 8) * i;
+      return [(7.5 + randFloat(-1.5, 1.5)) * Math.cos(a),
+              (11  + randFloat(-1.5, 1.5)) * Math.sin(a)];
+    });
+
+    // Head: 6-point spline around centre (4, 0), radius ~4
+    this.headPts = Array.from({ length: 6 }, (_, i) => {
+      const a = (Math.PI * 2 / 6) * i;
+      const r = 4 + randFloat(-1.0, 1.0);
+      return [4 + Math.cos(a) * r, Math.sin(a) * r];
+    });
+
+    // Arm joints — exactly 1 joint per arm, placed at midpoint ± perp offset
+    const _armJoint = (sx, sy, ex, ey, maxOff) => {
+      const dx = ex - sx, dy = ey - sy, len = Math.sqrt(dx*dx + dy*dy);
+      const px = -dy / len, py = dx / len;  // unit perpendicular
+      const off = randFloat(-maxOff, maxOff);
+      return [(sx + ex) / 2 + px * off, (sy + ey) / 2 + py * off];
+    };
+    this.rearArmJoint  = _armJoint(3, 9,  6,  7, 3);   // shoulder → rear grip
+    this.frontArmJoint = _armJoint(1, -9, 17, 7, 4);   // shoulder → front grip
   }
 
   update(keys, mx, my, room) {
@@ -50,11 +75,13 @@ class Player {
     if (this.fireCooldown > 0 || !this.alive) return;
     const vx = Math.cos(this.angle) * C.BULLET_SPEED;
     const vy = Math.sin(this.angle) * C.BULLET_SPEED;
-    const r  = this.wideShots > 0 ? C.BULLET_RADIUS * 3 : C.BULLET_RADIUS;
-    if (this.wideShots > 0) this.wideShots--;
+    const isPower = this.wideShots > 0;
+    const r       = isPower ? C.BULLET_RADIUS * 3 : C.BULLET_RADIUS;
+    const damage  = isPower ? C.BULLET_DAMAGE * 3 : C.BULLET_DAMAGE;
+    if (isPower) this.wideShots--;
     const ox = Math.cos(this.angle) * (this.radius + r + 2);
     const oy = Math.sin(this.angle) * (this.radius + r + 2);
-    bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'player', C.BULLET_DAMAGE, r);
+    bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'player', damage, r);
     this.fireCooldown = C.PLAYER_FIRE_RATE;
     AudioEngine.playSFX('shoot');
   }

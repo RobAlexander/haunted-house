@@ -5,7 +5,7 @@ class Room {
     this.gx              = gx    || 0;
     this.gy              = gy    || 0;
     this.depth           = depth || 0;
-    this.type            = 'normal';   // 'start'|'normal'|'ghost'|'skeleton'|'mixed'|'boss'|'treasure'
+    this.type            = 'normal';   // 'start'|'normal'|'ghost'|'skull'|'mixed'|'boss'|'treasure'
     this.cleared         = false;
     this.visited         = false;
     this.bossDoorsLocked = false;      // set true on boss rooms until boss dies
@@ -143,7 +143,7 @@ class DungeonGraph {
         room.type       = 'ghost';
         room.enemyCount = randInt(2, 3 + fb);
       } else if (d <= 4) {
-        room.type       = 'skeleton';
+        room.type       = 'skull';
         room.enemyCount = randInt(2, 3 + fb);
       } else {
         room.type       = 'mixed';

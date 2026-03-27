@@ -158,8 +158,9 @@ const AudioEngine = (() => {
       case 'death':      _sfxDeath(now);     break;
       case 'room_enter': _sfxRoomEnter(now); break;
       case 'pickup':     _sfxPickup(now);    break;
-      case 'boss_enter': _sfxBossEnter(now); break;
-      case 'game_over':  _sfxGameOver(now);  break;
+      case 'boss_enter':  _sfxBossEnter(now);  break;
+      case 'boss_phase':  _sfxBossPhase(now);  break;
+      case 'game_over':   _sfxGameOver(now);   break;
       case 'win':        _sfxWin(now);       break;
     }
   }
@@ -305,6 +306,99 @@ const AudioEngine = (() => {
     hg.connect(reverb);
     hi.start(now + 0.3);
     hi.stop(now + 1.9);
+  }
+
+  // Angry scheming sound — duration matches boss phase-transition glow
+  function _sfxBossPhase(now) {
+    const dur = C.BOSS_PHASE_TRANSITION_FRAMES / C.FPS;
+
+    // Layer 1: Low growl that swells and breathes — filter sweeps open then closes
+    {
+      const osc = ctx.createOscillator();
+      const flt = ctx.createBiquadFilter();
+      const g   = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(52, now);
+      osc.frequency.linearRampToValueAtTime(72, now + dur * 0.5);
+      osc.frequency.linearRampToValueAtTime(58, now + dur);
+      flt.type = 'lowpass';
+      flt.frequency.setValueAtTime(160, now);
+      flt.frequency.linearRampToValueAtTime(950, now + dur * 0.4);
+      flt.frequency.exponentialRampToValueAtTime(200, now + dur);
+      g.gain.setValueAtTime(0.001, now);
+      g.gain.linearRampToValueAtTime(0.26, now + 0.35);
+      g.gain.linearRampToValueAtTime(0.20, now + dur * 0.75);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(flt); flt.connect(g); g.connect(reverb);
+      osc.start(now); osc.stop(now + dur + 0.1);
+    }
+
+    // Layer 2: Three slightly detuned sawtooth oscillators — beating creates
+    // natural-feeling amplitude flutter, like a living thing
+    [0, -16, 21].forEach(detune => {
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.linearRampToValueAtTime(196, now + dur);
+      osc.detune.setValueAtTime(detune, now);
+      g.gain.setValueAtTime(0.001, now);
+      g.gain.linearRampToValueAtTime(0.065, now + 0.5);
+      g.gain.linearRampToValueAtTime(0.065, now + dur * 0.65);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(g); g.connect(reverb);
+      osc.start(now); osc.stop(now + dur + 0.1);
+    });
+
+    // Layer 3: Scheming irregular melodic motif — diminished seventh arpeggio
+    // (B, D, F, Ab) in a purposefully uneven rhythm, like a sinister theme
+    const motif = [
+      { t: 0.04, f: 246.9, d: 0.10 },
+      { t: 0.17, f: 293.7, d: 0.08 },
+      { t: 0.27, f: 174.6, d: 0.17 },
+      { t: 0.47, f: 246.9, d: 0.07 },
+      { t: 0.57, f: 349.2, d: 0.07 },
+      { t: 0.66, f: 293.7, d: 0.11 },
+      { t: 0.80, f: 174.6, d: 0.20 },
+      { t: 1.03, f: 207.7, d: 0.07 },
+      { t: 1.13, f: 293.7, d: 0.06 },
+      { t: 1.22, f: 415.3, d: 0.30 },
+    ];
+    motif.forEach(({ t, f, d }) => {
+      if (t >= dur) return;
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(f, now + t);
+      g.gain.setValueAtTime(0.075, now + t);
+      g.gain.exponentialRampToValueAtTime(0.001, now + t + d);
+      osc.connect(g); g.connect(master);
+      osc.start(now + t); osc.stop(now + t + d + 0.02);
+    });
+
+    // Layer 4: High eerie tremolo — LFO vibrato that accelerates, growing urgency
+    {
+      const osc     = ctx.createOscillator();
+      const lfo     = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      const g       = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(880, now + 0.15);
+      osc.frequency.linearRampToValueAtTime(740, now + dur);
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(5, now + 0.15);
+      lfo.frequency.linearRampToValueAtTime(11, now + dur);  // speeds up
+      lfoGain.gain.setValueAtTime(14, now + 0.15);
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+      g.gain.setValueAtTime(0.001, now + 0.15);
+      g.gain.linearRampToValueAtTime(0.05, now + 0.5);
+      g.gain.linearRampToValueAtTime(0.05, now + dur * 0.8);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(g); g.connect(reverb);
+      lfo.start(now + 0.15); lfo.stop(now + dur + 0.1);
+      osc.start(now + 0.15); osc.stop(now + dur + 0.1);
+    }
   }
 
   // Slow descending minor chord

@@ -1,8 +1,11 @@
 // p5.js global-mode entry point
 
 const keys      = {};
-let   mouseDown = false;
-let   _scale    = 1;   // canvas pixels per logical pixel (set in setup/windowResized)
+let   mouseDown    = false;
+let   _scale       = 1;      // canvas pixels per logical pixel (set in setup/windowResized)
+let   _justFocused = false;  // swallow the click that re-focuses the window
+
+window.addEventListener('focus', () => { _justFocused = true; });
 
 function _fitCanvas() {
   // Largest 4:3 rectangle that fits in the current window
@@ -41,8 +44,9 @@ function draw() {
     return;
   }
 
-  // Name entry / win / game-over — still render but don't update game
-  if (G.state === STATES.NAME_ENTRY ||
+  // Paused / name entry / win / game-over — still render but don't update game
+  if (G.state === STATES.PAUSED     ||
+      G.state === STATES.NAME_ENTRY ||
       G.state === STATES.WIN        ||
       G.state === STATES.GAME_OVER) {
     Renderer.draw();
@@ -95,6 +99,7 @@ function draw() {
 // ── Input ────────────────────────────────────────────────────────────────
 
 function mousePressed() {
+  if (_justFocused) { _justFocused = false; return false; }
   AudioEngine.init();
   if (G.state === STATES.MENU) { startGame(); return false; }
   mouseDown = true;
@@ -108,8 +113,8 @@ function mouseReleased() {
 }
 
 const DEV_COMMANDS = [
-  'boss', 'fullmap', 'help', 'setfloor', 'wide',
-  'spawn_ghost', 'spawn_ghoul', 'spawn_red_ghost', 'spawn_skeleton',
+  'boss', 'fullmap', 'help', 'power', 'setfloor',
+  'spawn_ghost', 'spawn_ghoul', 'spawn_red_ghost', 'spawn_skull',
 ];
 
 function _devSpawn(EnemyClass, overrides) {
@@ -151,10 +156,10 @@ function _execDevCommand(cmd) {
     G.player.pos.y = corners[0].y;
     return 'Teleported to boss room.';
   }
-  if (cmd === 'wide') {
+  if (cmd === 'power') {
     if (!G.player) return 'No player.';
     G.player.wideShots = C.WIDE_BULLET_SHOTS;
-    return `Wide shots granted (${C.WIDE_BULLET_SHOTS}).`;
+    return `Power shots granted (${C.WIDE_BULLET_SHOTS}).`;
   }
   if (cmd === 'fullmap') {
     G.devFullMap = !G.devFullMap;
@@ -167,8 +172,8 @@ function _execDevCommand(cmd) {
     for (const e of (G.enemies || [])) {
       if (!e.alive) continue;
       e.speedMult = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
-      if (e.type === 'skeleton')
-        e.vel.x = Math.sign(e.vel.x || 1) * C.SKELETON_SPEED * e.speedMult;
+      if (e.type === 'skull')
+        e.vel.x = Math.sign(e.vel.x || 1) * C.SKULL_SPEED * e.speedMult;
       if (e.type === 'boss') {
         e.firerateMult = _floorMult(C.FLOOR_BOSS_FIRERATE_BONUS, C.FLOOR_BOSS_FIRERATE_CAP);
         e.bulletMult   = _floorMult(C.FLOOR_BOSS_BULLETS_BONUS,  C.FLOOR_BOSS_BULLETS_CAP);
@@ -180,7 +185,7 @@ function _execDevCommand(cmd) {
   }
   if (cmd === 'spawn_ghost')     return _devSpawn(GhostEnemy);
   if (cmd === 'spawn_red_ghost') return _devSpawn(GhostEnemy, { variant: 'lunge' });
-  if (cmd === 'spawn_skeleton')  return _devSpawn(SkeletonEnemy);
+  if (cmd === 'spawn_skull')     return _devSpawn(SkullEnemy);
   if (cmd === 'spawn_ghoul')     return _devSpawn(GhoulEnemy);
   if (cmd === 'help' || cmd === '') {
     return DEV_COMMANDS.join('  ');
@@ -247,23 +252,25 @@ function keyPressed() {
 
   if (key === 'Escape' && G.state !== STATES.MENU) {
     if (G.mapOpen) { G.mapOpen = false; return false; }
-    const endScreen = G.state === STATES.GAME_OVER || G.state === STATES.WIN;
-    if (G.escConfirm || endScreen) {
-      G.escConfirm = false;
+    if (G.state === STATES.PLAYING) { G.state = STATES.PAUSED; return false; }
+    if (G.state === STATES.PAUSED ||
+        G.state === STATES.GAME_OVER ||
+        G.state === STATES.WIN) {
       G.floor = 1;
       G.devConsole.open   = false;
       G.devConsole.input  = '';
       G.devConsole.output = '';
       AudioEngine.stopMusic();
       G.state = STATES.MENU;
-    } else {
-      G.escConfirm = true;
     }
     return false;
   }
 
-  // Any other key cancels the esc confirmation
-  if (G.escConfirm) { G.escConfirm = false; return false; }
+  if (key.toLowerCase() === 'p' &&
+      (G.state === STATES.PLAYING || G.state === STATES.PAUSED)) {
+    G.state = G.state === STATES.PAUSED ? STATES.PLAYING : STATES.PAUSED;
+    return false;
+  }
 
   if (key.toLowerCase() === 'm' && G.state === STATES.PLAYING) {
     G.mapOpen = !G.mapOpen;

@@ -116,9 +116,31 @@ class GhoulEnemy {
     this.leapDuration    = 0;
     this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
     this.leapTimer       = randInt(C.GHOUL_LEAP_COOLDOWN_MIN, C.GHOUL_LEAP_COOLDOWN_MAX);
-    this.crawlPhase      = randFloat(0, Math.PI * 2);
-    // Per-instance static deformation: [bodyW, bodyH, limb0..3 angle offsets]
-    this.deform          = Array.from({ length: 6 }, () => randFloat(-1, 1));
+    this.crawlPhase = randFloat(0, Math.PI * 2);
+    this.eyeOff     = 3.5 + randFloat(0, 2.5);
+
+    // Irregular body outline: 10 points, each stored as [xMult, yMult] × radius
+    this.bodyPts = Array.from({ length: 10 }, (_, i) => {
+      const a  = (Math.PI * 2 / 10) * i;
+      const rx = (1.2 + randFloat(-0.3, 0.3)) * Math.cos(a);
+      const ry = (0.75 + randFloat(-0.2, 0.2)) * Math.sin(a);
+      return [rx, ry];
+    });
+
+    // Per-leg structure: each leg has a base direction offset, segment lengths,
+    // and bend angles at each joint. Joint count: 1 (40%), 2 (40%), 3 (15%), 4 (5%)
+    const legBaseAngles = [-Math.PI/4, Math.PI/4, Math.PI*0.75, Math.PI*1.25];
+    this.legs = legBaseAngles.map(baseA => {
+      const rnd     = Math.random();
+      const nJoints = rnd < 0.40 ? 1 : rnd < 0.80 ? 2 : rnd < 0.95 ? 3 : 4;
+      const total   = 11 + randFloat(-2, 3);
+      const base    = total / (nJoints + 1);
+      return {
+        dir:     baseA + randFloat(-0.35, 0.35),
+        segLens: Array.from({ length: nJoints + 1 }, () => base + randFloat(-2, 2)),
+        bends:   Array.from({ length: nJoints },     () => randFloat(-0.6, 0.6)),
+      };
+    });
   }
 
   update(player, room) {
@@ -187,25 +209,31 @@ class GhoulEnemy {
   }
 }
 
-// ── Skeleton ──────────────────────────────────────────────────────────────
+// ── Skull ─────────────────────────────────────────────────────────────────
 
-class SkeletonEnemy {
+class SkullEnemy {
   constructor(x, y) {
     this.pos         = { x, y };
     this.spawnX      = x;
     this.spawnY      = y;
     this.speedMult   = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
-    this.vel         = { x: C.SKELETON_SPEED * this.speedMult, y: 0 };
-    this.hp          = C.SKELETON_HP;
-    this.maxHp       = C.SKELETON_HP;
-    this.radius      = C.SKELETON_RADIUS;
-    this.type        = 'skeleton';
-    this.scoreValue  = C.SCORE_SKELETON;
+    this.vel         = { x: C.SKULL_SPEED * this.speedMult, y: 0 };
+    this.hp          = C.SKULL_HP;
+    this.maxHp       = C.SKULL_HP;
+    this.radius      = C.SKULL_RADIUS;
+    this.type        = 'skull';
+    this.scoreValue  = C.SCORE_SKULL;
     this.alive       = true;
-    this.fireTimer   = randInt(30, C.SKELETON_FIRE_RATE);
+    this.fireTimer   = randInt(30, C.SKULL_FIRE_RATE);
     this.facing      = 0;  // radians, toward player when firing
-    // Per-instance static deformation: [craniumR, leftEyeX, rightEyeX, jawY, toothSpread]
+    // Eye/teeth variation: [leftEyeX, rightEyeX, jawY, toothSpread, unused]
     this.deform      = Array.from({ length: 5 }, () => randFloat(-1, 1));
+    // Pre-computed irregular head outline: 7 radial offsets from centre
+    this.headPts = Array.from({ length: 7 }, (_, i) => {
+      const angle = (Math.PI * 2 / 7) * i - Math.PI / 2;
+      const r     = 11 + randFloat(-3.5, 3.5);
+      return [Math.cos(angle) * r, Math.sin(angle) * r];
+    });
   }
 
   update(player, room) {
@@ -213,7 +241,7 @@ class SkeletonEnemy {
 
     // Patrol left/right around spawn point
     this.pos.x += this.vel.x;
-    if (Math.abs(this.pos.x - this.spawnX) > C.SKELETON_PATROL_RANGE) {
+    if (Math.abs(this.pos.x - this.spawnX) > C.SKULL_PATROL_RANGE) {
       this.vel.x *= -1;
     }
 
@@ -234,16 +262,16 @@ class SkeletonEnemy {
     this.fireTimer--;
     if (this.fireTimer <= 0) {
       this._fireBullet(this.facing);
-      this.fireTimer = C.SKELETON_FIRE_RATE;
+      this.fireTimer = C.SKULL_FIRE_RATE;
     }
   }
 
   _fireBullet(angle) {
-    const vx = Math.cos(angle) * C.SKELETON_BULLET_SPEED;
-    const vy = Math.sin(angle) * C.SKELETON_BULLET_SPEED;
+    const vx = Math.cos(angle) * C.SKULL_BULLET_SPEED;
+    const vy = Math.sin(angle) * C.SKULL_BULLET_SPEED;
     const ox = Math.cos(angle) * (this.radius + 6);
     const oy = Math.sin(angle) * (this.radius + 6);
-    G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.SKELETON_BULLET_DAMAGE);
+    G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.SKULL_BULLET_DAMAGE);
   }
 
   takeDamage(amount) {
@@ -272,11 +300,13 @@ class BossEnemy {
     this.fireTimer  = 60;
     this.erraticDir    = { x: 1, y: 0 };
     this.erraticTimer  = 0;
-    this.speedMult     = _floorMult(C.FLOOR_SPEED_BONUS,         C.FLOOR_SPEED_CAP);
-    this.firerateMult  = _floorMult(C.FLOOR_BOSS_FIRERATE_BONUS, C.FLOOR_BOSS_FIRERATE_CAP);
-    this.bulletMult    = _floorMult(C.FLOOR_BOSS_BULLETS_BONUS,  C.FLOOR_BOSS_BULLETS_CAP);
+    this.speedMult        = _floorMult(C.FLOOR_SPEED_BONUS,         C.FLOOR_SPEED_CAP);
+    this.firerateMult     = _floorMult(C.FLOOR_BOSS_FIRERATE_BONUS, C.FLOOR_BOSS_FIRERATE_CAP);
+    this.bulletMult       = _floorMult(C.FLOOR_BOSS_BULLETS_BONUS,  C.FLOOR_BOSS_BULLETS_CAP);
+    this.prevPhase        = 1;
+    this.transitionTimer  = 0;
     // Per-instance static deformation: radial offset per skull vertex (8 points)
-    this.deform        = Array.from({ length: 8 }, () => randFloat(-1, 1));
+    this.deform           = Array.from({ length: 8 }, () => randFloat(-1, 1));
   }
 
   get speed() {
@@ -289,9 +319,15 @@ class BossEnemy {
   update(player, room) {
     if (!this.alive) return;
 
-    // Update phase
+    // Update phase; trigger invulnerability glow on transition
     const hpFrac = this.hp / this.maxHp;
     this.phase = hpFrac > 0.66 ? 1 : hpFrac > 0.33 ? 2 : 3;
+    if (this.phase > this.prevPhase) {
+      this.transitionTimer = C.BOSS_PHASE_TRANSITION_FRAMES;
+      this.prevPhase = this.phase;
+      AudioEngine.playSFX('boss_phase');
+    }
+    if (this.transitionTimer > 0) this.transitionTimer--;
 
     // Movement
     if (this.phase < 3) {
@@ -347,6 +383,7 @@ class BossEnemy {
   }
 
   takeDamage(amount) {
+    if (this.transitionTimer > 0) return;
     this.hp -= amount;
     if (this.hp <= 0) {
       this.hp    = 0;
@@ -370,13 +407,44 @@ function _spawnDeathFX(enemy) {
             : enemy.type === 'ghoul'    ? C.COL_GHOUL
             : enemy.type === 'boss'     ? '#ff2222'
             : '#ff6644';
-  G.deathParticles.push({
-    x: enemy.pos.x, y: enemy.pos.y,
-    radius: enemy.radius,
-    maxRadius: enemy.radius * 3.5,
-    life: 35, maxLife: 35,
-    col,
-  });
+  if (enemy.type === 'boss') {
+    // Multi-wave explosion
+    const waves = [
+      { delay: 0,  maxR: 220, life: 90, col: '#ffffff' },
+      { delay: 0,  maxR: 150, life: 80, col: '#ff2222' },
+      { delay: 15, maxR: 115, life: 70, col: '#ff6600' },
+      { delay: 30, maxR: 85,  life: 55, col: '#ffcc00' },
+      { delay: 50, maxR: 55,  life: 40, col: '#ff2222' },
+    ];
+    for (const w of waves) {
+      G.deathParticles.push({
+        x: enemy.pos.x, y: enemy.pos.y,
+        radius: enemy.radius, maxRadius: w.maxR,
+        life: w.life, maxLife: w.life, col: w.col, delay: w.delay,
+      });
+    }
+    // Scattered fragments
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 / 8) * i;
+      const dist  = 28 + Math.random() * 22;
+      G.deathParticles.push({
+        x: enemy.pos.x + Math.cos(angle) * dist,
+        y: enemy.pos.y + Math.sin(angle) * dist,
+        radius: 4, maxRadius: 20,
+        life: 45 + Math.floor(Math.random() * 25), maxLife: 70,
+        col: i % 2 === 0 ? '#ff4444' : '#ff8800',
+        delay: Math.floor(Math.random() * 25),
+      });
+    }
+  } else {
+    G.deathParticles.push({
+      x: enemy.pos.x, y: enemy.pos.y,
+      radius: enemy.radius,
+      maxRadius: enemy.radius * 3.5,
+      life: 35, maxLife: 35,
+      col, delay: 0,
+    });
+  }
   // Drop chance scales inversely with avg enemies/room so expected drops per room is floor-constant
   const avg       = G.dungeon ? G.dungeon.avgEnemiesPerRoom : C.DROP_HEAL_BASELINE_ENEMIES;
   const dropChance = C.DROP_CHANCE * C.DROP_HEAL_BASELINE_ENEMIES / avg;
@@ -417,16 +485,16 @@ function spawnGhosts(room) {
   return ghosts;
 }
 
-function spawnSkeletons(room) {
-  const skeletons = [];
-  const count     = Math.max(1, Math.floor(room.enemyCount / 2));
-  const z         = _spawnZone(room);
-  for (let i = 0; i < count * 15 && skeletons.length < count; i++) {
+function spawnSkulls(room) {
+  const skulls = [];
+  const count  = Math.max(1, Math.floor(room.enemyCount / 2));
+  const z      = _spawnZone(room);
+  for (let i = 0; i < count * 15 && skulls.length < count; i++) {
     const x = randFloat(z.minX, z.maxX);
     const y = randFloat(z.minY, z.maxY);
-    if (_validPos(x, y, C.SKELETON_RADIUS, room, 120)) skeletons.push(new SkeletonEnemy(x, y));
+    if (_validPos(x, y, C.SKULL_RADIUS, room, 120)) skulls.push(new SkullEnemy(x, y));
   }
-  return skeletons;
+  return skulls;
 }
 
 function spawnBoss() {
@@ -448,7 +516,7 @@ function spawnGhouls(room) {
 // Main entry point called by state.js
 function spawnEnemies(room) {
   if (room.type === 'boss')      return spawnBoss();
-  if (room.type === 'skeleton')  return [...spawnSkeletons(room), ...spawnGhouls(room)];
-  if (room.type === 'mixed')     return [...spawnGhosts(room), ...spawnSkeletons(room), ...spawnGhouls(room)];
+  if (room.type === 'skull')  return [...spawnSkulls(room), ...spawnGhouls(room)];
+  if (room.type === 'mixed')  return [...spawnGhosts(room), ...spawnSkulls(room), ...spawnGhouls(room)];
   return spawnGhosts(room);
 }

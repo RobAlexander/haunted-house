@@ -33,14 +33,14 @@ const C = {
   GHOST_LUNGE_COOLDOWN_MIN: 80,
   GHOST_LUNGE_COOLDOWN_MAX: 160,
 
-  // Skeleton enemy
-  SKELETON_SPEED:         2,
-  SKELETON_RADIUS:        13,
-  SKELETON_HP:            50,
-  SKELETON_BULLET_SPEED:  3.5,
-  SKELETON_BULLET_DAMAGE: 10,
-  SKELETON_FIRE_RATE:     60,   // frames between shots
-  SKELETON_PATROL_RANGE:  110,  // px either side of spawn
+  // Skull enemy
+  SKULL_SPEED:         2,
+  SKULL_RADIUS:        13,
+  SKULL_HP:            50,
+  SKULL_BULLET_SPEED:  3.5,
+  SKULL_BULLET_DAMAGE: 10,
+  SKULL_FIRE_RATE:     60,   // frames between shots
+  SKULL_PATROL_RANGE:  110,  // px either side of spawn
 
   // Boss enemy
   BOSS_RADIUS:            28,
@@ -50,10 +50,11 @@ const C = {
   BOSS_SPEED_3:           1.8,
   BOSS_BULLET_SPEED:      4,
   BOSS_BULLET_DAMAGE:     20,
+  BOSS_PHASE_TRANSITION_FRAMES: 120,  // 2s invulnerability + yellow glow on phase change
 
   // Score
   SCORE_GHOST:    10,
-  SCORE_SKELETON: 25,
+  SCORE_SKULL: 25,
   SCORE_BOSS:     200,
 
   // Dungeon
@@ -76,7 +77,7 @@ const C = {
   COL_CROSSHAIR:   '#44cc88',
 
   COL_GHOST:       '#cc88ff',
-  COL_SKELETON:    '#ff6644',
+  COL_SKULL:       '#ff6644',
   COL_BOSS:        '#ff2222',
   COL_BOSS_BULLET: '#ff8844',
   COL_PICKUP:      '#ffcc00',

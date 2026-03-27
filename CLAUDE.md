@@ -12,7 +12,8 @@ Open `index.html` directly in any modern browser to play.
 | Left click (hold) | Shoot |
 | M | Toggle map (pauses game; visited rooms shown; fullmap mode shows all) |
 | N | Next floor (from win screen) |
-| Esc | Close map / Return to title screen |
+| P | Toggle pause |
+| Esc | Close map; pause game (if playing); return to menu (if paused/win/game-over) |
 | Enter | Start game from menu |
 | ` (backtick) | Toggle developer console |
 
@@ -40,7 +41,7 @@ js/state.js       — global G object, state machine, enterRoom(), transitions
 js/bullet.js      — 128-bullet object pool
 js/door.js        — getDoorCenter(), OPP_DIR
 js/rooms.js       — Room class + DungeonGraph procedural generation
-js/enemy.js       — GhostEnemy, SkeletonEnemy, GhoulEnemy, BossEnemy, spawnEnemies()
+js/enemy.js       — GhostEnemy, SkullEnemy, GhoulEnemy, BossEnemy, spawnEnemies()
 js/player.js      — WASD movement, axis-separated collision, shooting
 js/audio.js       — AudioEngine: Web Audio API synth music + SFX, no audio files
 js/scores.js      — HighScores: localStorage top-5 table with name entry
@@ -52,7 +53,8 @@ css/style.css     — page/canvas styling
 ## Game Loop
 
 ```
-MENU → (Enter / click) → PLAYING → ROOM_TRANSITION → PLAYING
+MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
+                          PLAYING → ROOM_TRANSITION → PLAYING
                                   ↓
                             GAME_OVER → NAME_ENTRY (if high score) → MENU
                             WIN → MENU  (or N for next floor)
@@ -64,8 +66,8 @@ MENU → (Enter / click) → PLAYING → ROOM_TRANSITION → PLAYING
 |---|---|---|
 | start | none | Pre-cleared; player spawns here |
 | ghost | Ghosts (depth-scaled) | Depth 1–2 |
-| skeleton | Skeletons + Ghouls | Depth 3–4 |
-| mixed | Ghosts + Skeletons + Ghouls | Depth 5+ |
+| skull | Skulls + Ghouls | Depth 3–4 |
+| mixed | Ghosts + Skulls + Ghouls | Depth 5+ |
 | boss | Boss (1) | Deepest room; door locked until boss dies |
 | treasure | none | Dead-end at depth ≥2; +40 HP pickup |
 
@@ -75,9 +77,9 @@ MENU → (Enter / click) → PLAYING → ROOM_TRANSITION → PLAYING
 |---|---|---|---|---|
 | Ghost | 30 | Always chases; contact damage | 15 | 10 |
 | Lunge ghost | 30 | As ghost; brief 2.4× speed bursts every 80–160f | 15 | 10 |
-| Skeleton | 50 | Patrols; fires toward player every 60f | 10/bullet | 25 |
+| Skull | 50 | Patrols; fires toward player every 60f | 10/bullet | 25 |
 | Ghoul | 50 | Slow crawl; leaps at 5.5× speed when in range | 40/contact | 35 |
-| Boss | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase | 20/bullet | 200 |
+| Boss | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change | 20/bullet | 200 |
 
 All enemy movement speeds and boss fire rate / bullet count scale with floor number (see `FLOOR_*` constants).
 Incoming player damage scales up 10% per floor with no cap (`FLOOR_DAMAGE_BONUS`).
@@ -89,12 +91,12 @@ Open with `` ` ``. Tab-completes commands.
 | Command | Effect |
 |---|---|
 | `boss` | Teleport to boss room (spawns player in a covered corner) |
-| `wide` | Grant wide-bullet shots |
+| `power` | Grant power (wide) shots |
 | `fullmap` | Toggle full map view (shows unvisited rooms in dim outline) |
 | `setfloor <n>` | Set floor number and re-apply difficulty scaling to live enemies |
 | `spawn_ghost` | Spawn a normal ghost near player |
 | `spawn_red_ghost` | Spawn a lunge ghost near player |
-| `spawn_skeleton` | Spawn a skeleton near player |
+| `spawn_skull` | Spawn a skull near player |
 | `spawn_ghoul` | Spawn a ghoul near player |
 | `help` | List all commands |
 
@@ -111,11 +113,16 @@ Open with `` ` ``. Tab-completes commands.
 - Boss room = deepest room; `bossDoorsLocked` cleared when boss HP reaches 0.
 - Treasure room pickup activated on `enterRoom()`, consumed in `checkPickup()` each frame.
 - Lunge ghost: 30% of ghost spawns; timers controlled by `GHOST_LUNGE_COOLDOWN_MIN/MAX`.
-- Wide-bullet powerup: 8 shots at 3× bullet radius; spawns in a second dead-end room (65% chance).
-- GhoulEnemy: crawls slowly then leaps at `GHOUL_LEAP_SPEED` when within `GHOUL_LEAP_RANGE`; appears in skeleton and mixed rooms.
+- Power-shot powerup (was "wide-bullet"): 8 shots at 3× bullet radius; spawns in a second dead-end room (65% chance). HUD label "POWER", dev command `power`.
+- GhoulEnemy: crawls slowly then leaps at `GHOUL_LEAP_SPEED` when within `GHOUL_LEAP_RANGE`; appears in skull and mixed rooms.
 - **Floor difficulty scaling** — `_floorMult(bonus, cap)` in enemy.js computes a linear ramp capped at `cap`; stored on each enemy at spawn as `speedMult` (and `firerateMult`/`bulletMult` for boss). `setfloor` console command patches live enemies and reports speed + damage multipliers.
 - **Incoming damage scaling** — `player.takeDamage()` multiplies all damage by `1 + (floor-1) × FLOOR_DAMAGE_BONUS` (10%/floor, no cap).
 - **Drop rate scaling** — enemy heal-drop probability (`DROP_CHANCE`, base 40%) scales inversely with the dungeon's actual average enemies per combat room (`G.dungeon.avgEnemiesPerRoom`, computed after generation), keeping expected drops per room constant across floors. Drop amount per pickup is fixed at `DROP_HEAL_AMOUNT`.
-- **Per-instance deformation** — Ghosts use `deform[6]` for organic silhouette variation; Skeletons `deform[5]` for skull shape; Ghouls `deform[6]` for body/limb variation; Boss `deform[8]` for skull vertex offsets.
+- **HP preserved across floors** — `nextFloor()` saves and restores `player.hp`/`maxHp` and `G.score` so progression carries over.
+- **Per-instance deformation** — Ghosts use `deform[6]` for organic silhouette variation; Skulls use `deform[5]` + `headPts[7]` (pre-computed irregular spline vertices); Ghouls use `bodyPts[10]` (irregular spline) + `legs[4]` (jointed legs with variable joint count 1–4); Boss `deform[8]` for skull vertex offsets; Player uses `bodyPts`/`headPts` splines with jointed arms.
+- **Boss phase transition** — on entering phase 2 or 3, boss becomes invulnerable for `BOSS_PHASE_TRANSITION_FRAMES` (120f = 2s), glows yellow, and plays the `boss_phase` SFX. `transitionTimer` tracked on the boss instance.
+- **Boss death explosion** — multi-wave particle burst (5 waves with staggered delays) plus 8 scattered fragments.
+- **Pause state** — `STATES.PAUSED` freezes game update but continues rendering. P key or Esc (while playing) enters pause; P resumes; Esc from pause goes to menu. Replaces old ESC-confirm flow.
+- **Focus swallow** — `_justFocused` flag prevents accidental shot when the window regains focus.
 - **High scores** — `HighScores` (scores.js) persists top-5 `{score, floor, name}` entries in localStorage. On death, `_beginEndSequence()` checks `qualifies()` and routes through `STATES.NAME_ENTRY` if so.
 - All SFX volumes exposed as `SFX_VOL_*` constants for easy tuning.

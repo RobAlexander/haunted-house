@@ -1,6 +1,7 @@
 const STATES = {
   MENU:            'menu',
   PLAYING:         'playing',
+  PAUSED:          'paused',
   ROOM_TRANSITION: 'room_transition',
   NAME_ENTRY:      'name_entry',
   GAME_OVER:       'game_over',
@@ -21,7 +22,6 @@ const G = {
   floor:          1,
   deathParticles: [],
   drops:          [],
-  escConfirm:     false,
   mapOpen:        false,
   newHighScore:    null,   // 1-based rank of last score, or null
   nameInput:       '',     // player name being typed on NAME_ENTRY screen
@@ -40,7 +40,7 @@ function startGame() {
   G.clearedFlash   = 0;
   G.deathParticles = [];
   G.drops          = [];
-  G.mapOpen          = false;
+  G.mapOpen         = false;
   G.newHighScore     = null;
   G.nameInput        = '';
   G.pendingEndState  = null;
@@ -53,8 +53,13 @@ function startGame() {
 }
 
 function nextFloor() {
+  const savedHp    = G.player ? G.player.hp    : null;
+  const savedMaxHp = G.player ? G.player.maxHp : null;
+  const savedScore = G.score;
   G.floor++;
   startGame();
+  if (savedHp !== null) { G.player.hp = savedHp; G.player.maxHp = savedMaxHp; }
+  G.score = savedScore;
 }
 
 function enterRoom(room, fromDir) {
@@ -62,6 +67,7 @@ function enterRoom(room, fromDir) {
   G.currentRoom    = room;
   room.visited     = true;
   G.bullets        = new BulletPool();
+  G.drops          = [];
 
   if (!room.cleared) {
     G.enemies = spawnEnemies(room);
@@ -150,11 +156,14 @@ function checkRoomCleared() {
     room.cleared   = true;
     G.clearedFlash = 150;
 
-    // Boss room cleared → win!
+    // Boss room cleared → open stairwell to next floor
     if (room.type === 'boss') {
       AudioEngine.playSFX('win');
-      AudioEngine.stopMusic();
-      G.state = STATES.WIN;
+      const dirs = ['north', 'south', 'east', 'west'];
+      const opp  = { north: 'south', south: 'north', east: 'west', west: 'east' };
+      const entryDir = dirs.find(d => room.connections[d]);
+      const free     = dirs.filter(d => !room.connections[d]);
+      room.stairwell = free.includes(opp[entryDir]) ? opp[entryDir] : free[0];
     }
   }
 }
@@ -169,6 +178,15 @@ function checkRoomExit() {
   if (pl.pos.y > C.HEIGHT - P && rm.connections.south) { startRoomTransition('south'); return; }
   if (pl.pos.x > C.WIDTH  - P && rm.connections.east)  { startRoomTransition('east');  return; }
   if (pl.pos.x < P            && rm.connections.west)  { startRoomTransition('west');  return; }
+
+  // Stairwell: walk into it to advance to next floor
+  if (rm.stairwell) {
+    const sw = rm.stairwell;
+    if (sw === 'north' && pl.pos.y < P)            { nextFloor(); return; }
+    if (sw === 'south' && pl.pos.y > C.HEIGHT - P) { nextFloor(); return; }
+    if (sw === 'east'  && pl.pos.x > C.WIDTH  - P) { nextFloor(); return; }
+    if (sw === 'west'  && pl.pos.x < P)            { nextFloor(); return; }
+  }
 }
 
 function checkPickup() {
@@ -211,6 +229,7 @@ function checkDropPickup() {
 function tickParticles() {
   for (let i = G.deathParticles.length - 1; i >= 0; i--) {
     const p = G.deathParticles[i];
+    if (p.delay > 0) { p.delay--; continue; }
     p.life--;
     if (p.life <= 0) G.deathParticles.splice(i, 1);
   }

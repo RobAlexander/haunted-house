@@ -66,11 +66,12 @@ function getWallRects() {
   const conn = room ? room.connections : {};
   const cl   = room ? room.cleared    : false;
 
+  const stairwell = room ? room.stairwell : null;
   const rects = [];
 
   function addWallH(y, dir) {
     // Horizontal wall at row y, spanning x = [0, W]
-    if (!conn[dir] || !cl) {
+    if ((!conn[dir] && stairwell !== dir) || !cl) {
       rects.push({ x: 0, y, w: W, h: P });
     } else {
       // Gap at centre
@@ -81,7 +82,7 @@ function getWallRects() {
 
   function addWallV(x, dir) {
     // Vertical wall at column x, spanning y = [0, H]
-    if (!conn[dir] || !cl) {
+    if ((!conn[dir] && stairwell !== dir) || !cl) {
       rects.push({ x, y: 0, w: P, h: H });
     } else {
       if (H / 2 - DH > 0)    rects.push({ x, y: 0,          w: P, h: H / 2 - DH         });
