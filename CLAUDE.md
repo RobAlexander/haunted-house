@@ -26,7 +26,7 @@ Open `index.html` directly in any modern browser to play.
 | 3 | ✅ Done | Skeleton + Boss enemies, locked boss room, win screen, score |
 | 4 | ✅ Done | Synth music + SFX (Web Audio API, no files) |
 | 5 | ✅ Done | Polish: death animations, HP vignette, enemy drops, floor progression |
-| 6 | ✅ Done | Ghoul enemy, lunge ghosts, skull skeletons, wide-bullet powerup, boss skull |
+| 6 | ✅ Done | Ghoul enemy, lunge ghosts, skull enemies, power-shot powerup, boss skull |
 | 7 | ✅ Done | Dev console, fullmap, dynamic resolution scaling, floor difficulty scaling |
 | 8 | ✅ Done | High score table (localStorage), name entry on death |
 
@@ -120,8 +120,11 @@ Open with `` ` ``. Tab-completes commands.
 - **Drop rate scaling** — enemy heal-drop probability (`DROP_CHANCE`, base 40%) scales inversely with the dungeon's actual average enemies per combat room (`G.dungeon.avgEnemiesPerRoom`, computed after generation), keeping expected drops per room constant across floors. Drop amount per pickup is fixed at `DROP_HEAL_AMOUNT`.
 - **HP preserved across floors** — `nextFloor()` saves and restores `player.hp`/`maxHp` and `G.score` so progression carries over.
 - **Per-instance deformation** — Ghosts use `deform[6]` for organic silhouette variation; Skulls use `deform[5]` + `headPts[7]` (pre-computed irregular spline vertices); Ghouls use `bodyPts[10]` (irregular spline) + `legs[4]` (jointed legs with variable joint count 1–4); Boss `deform[8]` for skull vertex offsets; Player uses `bodyPts`/`headPts` splines with jointed arms.
-- **Boss phase transition** — on entering phase 2 or 3, boss becomes invulnerable for `BOSS_PHASE_TRANSITION_FRAMES` (120f = 2s), glows yellow, and plays the `boss_phase` SFX. `transitionTimer` tracked on the boss instance.
+- **Boss phase transition** — on entering phase 2 or 3, boss becomes invulnerable for `BOSS_PHASE_TRANSITION_FRAMES` (120f = 2s), glows yellow, and plays the `boss_phase` SFX. `transitionTimer` tracked on the boss instance. Bullets intercept at the shield radius (`e.radius + 18`) with spark break-up; never reach the body.
 - **Boss death explosion** — multi-wave particle burst (5 waves with staggered delays) plus 8 scattered fragments.
+- **Elite enemies** — each combat room (floor 2+) has a 20–30% chance of one enemy being designated elite: pulsing yellow shield (`e.shielded = true`), invulnerable until all non-shielded room-mates die. `checkEliteShield()` runs each frame; bullets break up on the shield (radius+12) the same way as the boss.
+- **Shield sparks** — `_spawnShieldSparks()` (bullet.js) pushes to `G.shieldSparks`; sparks decelerate and fade over ~15f, rendered as trailing yellow streaks by `drawShieldSparks()`.
+- **Music modes** — AudioEngine has three modes: normal (F# minor pentatonic, sawtooth drone at 55Hz), boss (half-speed melody, faster LFO), victory (C major pentatonic, triangle drone at 110Hz, open filter, 2–3× faster melody — starts on boss kill, stops when next floor begins).
 - **Pause state** — `STATES.PAUSED` freezes game update but continues rendering. P key or Esc (while playing) enters pause; P resumes; Esc from pause goes to menu. Replaces old ESC-confirm flow.
 - **Focus swallow** — `_justFocused` flag prevents accidental shot when the window regains focus.
 - **High scores** — `HighScores` (scores.js) persists top-5 `{score, floor, name}` entries in localStorage. On death, `_beginEndSequence()` checks `qualifies()` and routes through `STATES.NAME_ENTRY` if so.
