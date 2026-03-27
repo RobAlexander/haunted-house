@@ -7,6 +7,15 @@ let   _justFocused = false;  // swallow the click that re-focuses the window
 
 window.addEventListener('focus', () => { _justFocused = true; });
 
+// Auto-pause on window blur or mouse leaving the page
+function _autoPause() {
+  if (G.state === STATES.PLAYING) G.state = STATES.PAUSED;
+  mouseDown = false;
+  for (const k in keys) keys[k] = false;
+}
+window.addEventListener('blur', _autoPause);
+document.addEventListener('mouseleave', _autoPause);
+
 function _fitCanvas() {
   // Largest 4:3 rectangle that fits in the current window
   const aspect = C.WIDTH / C.HEIGHT;
