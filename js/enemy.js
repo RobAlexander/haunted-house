@@ -354,6 +354,10 @@ class NuckelaveeEnemy {
     // Per-instance arm drop lengths (how far below horse body each arm hangs)
     this.armDrop  = [7 + randFloat(-3, 5), 10 + randFloat(-3, 5)];
     this.eyeSize  = 5 + randFloat(0, 3);
+
+    // Toxic breath cloud — green wisps that drift through the aura zone
+    this.breathParticles = [];
+    this.breathSpawnTimer = 0;
   }
 
   update(player, room) {
@@ -367,6 +371,33 @@ class NuckelaveeEnemy {
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
     this._resolveCollisions(room);
+
+    // Breath cloud — spawn and tick wisps
+    this.breathSpawnTimer--;
+    if (this.breathSpawnTimer <= 0) {
+      const a = randFloat(0, Math.PI * 2);
+      const d = randFloat(0, C.NUCKELAVEE_AURA_RADIUS * 0.9);
+      const outSpd = randFloat(0.15, 0.55);
+      const maxL   = randInt(28, 55);
+      this.breathParticles.push({
+        x: this.pos.x + Math.cos(a) * d,
+        y: this.pos.y + Math.sin(a) * d,
+        vx: Math.cos(a) * outSpd * 0.4 + randFloat(-0.2, 0.2),
+        vy: Math.sin(a) * outSpd * 0.4 + randFloat(-0.2, 0.2),
+        life: maxL, maxLife: maxL,
+        size: randFloat(2.5, 5.5),
+      });
+      this.breathSpawnTimer = 2;
+    }
+    for (let i = this.breathParticles.length - 1; i >= 0; i--) {
+      const p = this.breathParticles[i];
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.vx += randFloat(-0.04, 0.04);
+      p.vy += randFloat(-0.04, 0.04);
+      p.life--;
+      if (p.life <= 0) this.breathParticles.splice(i, 1);
+    }
 
     // Aura damage — tick every NUCKELAVEE_AURA_INTERVAL frames when player close
     if (this.auraCooldown > 0) this.auraCooldown--;

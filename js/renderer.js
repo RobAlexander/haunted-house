@@ -653,11 +653,18 @@ const Renderer = {
     const vein = C.COL_NUCKELAVEE_VEIN;
     const hw = 22, hh = 11;   // horse body half-width, half-height
 
-    // Aura ring — faint pulsing danger zone at the full aura radius
-    const auraAlpha = 0.07 + 0.04 * Math.sin(G.frame * 0.055);
-    drawingContext.globalAlpha = auraAlpha;
-    noFill(); stroke(col); strokeWeight(2);
-    circle(x, y, C.NUCKELAVEE_AURA_RADIUS * 2);
+    // Toxic breath cloud — green wisps drifting through the aura zone
+    noStroke();
+    for (const p of e.breathParticles) {
+      const frac = p.life / p.maxLife;
+      // Fade in first ~20% of life, hold, fade out last ~40%
+      const alpha = frac > 0.8 ? (1 - frac) / 0.2 * 0.45
+                  : frac < 0.4 ? (frac / 0.4) * 0.45
+                  :               0.45;
+      drawingContext.globalAlpha = alpha;
+      fill(C.COL_FLY);
+      circle(p.x, p.y, p.size * 2);
+    }
     drawingContext.globalAlpha = 1;
 
     // Horse body — horizontal ellipse
