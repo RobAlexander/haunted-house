@@ -408,6 +408,99 @@ class SkullEnemy {
   }
 }
 
+// ── White Skull ───────────────────────────────────────────────────────────
+// Tougher variant (floor 3+): weaving bullets + scatter burst when close.
+
+class WhiteSkullEnemy {
+  constructor(x, y) {
+    this.pos         = { x, y };
+    this.spawnX      = x;
+    this.spawnY      = y;
+    this.speedMult   = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.vel         = { x: C.WHITE_SKULL_SPEED * this.speedMult, y: 0 };
+    this.hp          = C.WHITE_SKULL_HP;
+    this.maxHp       = C.WHITE_SKULL_HP;
+    this.radius      = C.WHITE_SKULL_RADIUS;
+    this.type        = 'white_skull';
+    this.scoreValue  = C.SCORE_WHITE_SKULL;
+    this.alive       = true;
+    this.shielded          = false;
+    this.shieldFreezeTimer = 0;
+    this.fireTimer         = randInt(30, C.WHITE_SKULL_FIRE_RATE);
+    this.facing      = 0;
+    this.deform      = Array.from({ length: 5 }, () => randFloat(-1, 1));
+    // Slightly more angular skull shape than the regular skull
+    this.headPts = Array.from({ length: 7 }, (_, i) => {
+      const angle = (Math.PI * 2 / 7) * i - Math.PI / 2;
+      const baseR = 11 + 2.5 * Math.max(0, -Math.sin(angle))
+                       - 3.0 * Math.max(0,  Math.sin(angle));
+      const r     = baseR + randFloat(-1.2, 1.2);
+      return [Math.cos(angle) * r, Math.sin(angle) * r];
+    });
+  }
+
+  update(player, room) {
+    if (!this.alive) return;
+    if (this.shieldFreezeTimer > 0) { this.shieldFreezeTimer--; return; }
+
+    this.pos.x += this.vel.x;
+    if (Math.abs(this.pos.x - this.spawnX) > C.SKULL_PATROL_RANGE) this.vel.x *= -1;
+
+    for (const w of getWallRects()) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, w.x, w.y, w.w, w.h);
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; this.vel.x *= -1; }
+    }
+    for (const obs of room.obstacles) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, obs.x, obs.y, obs.w, obs.h);
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; this.vel.x *= -1; }
+    }
+
+    this.facing = Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
+
+    this.fireTimer--;
+    if (this.fireTimer <= 0) {
+      const dist = Math.hypot(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      const scatterP = dist < C.WHITE_SKULL_NEAR_RANGE ? 0.75 : 0.20;
+      if (Math.random() < scatterP) {
+        this._fireScatter();
+      } else {
+        this._fireWeaving(this.facing);
+      }
+      this.fireTimer = C.WHITE_SKULL_FIRE_RATE;
+    }
+  }
+
+  _fireWeaving(angle) {
+    const vx = Math.cos(angle) * C.WHITE_SKULL_BULLET_SPEED;
+    const vy = Math.sin(angle) * C.WHITE_SKULL_BULLET_SPEED;
+    const ox = Math.cos(angle) * (this.radius + 6);
+    const oy = Math.sin(angle) * (this.radius + 6);
+    G.bullets.fireWeaving(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.WHITE_SKULL_BULLET_DAMAGE);
+  }
+
+  _fireScatter() {
+    const count = C.WHITE_SKULL_SCATTER_COUNT;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 / count) * i;
+      const vx = Math.cos(angle) * C.WHITE_SKULL_BULLET_SPEED;
+      const vy = Math.sin(angle) * C.WHITE_SKULL_BULLET_SPEED;
+      const ox = Math.cos(angle) * (this.radius + 6);
+      const oy = Math.sin(angle) * (this.radius + 6);
+      G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.WHITE_SKULL_BULLET_DAMAGE);
+    }
+    AudioEngine.playSFX('boss_fire');
+  }
+
+  takeDamage(amount) {
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.hp = 0; this.alive = false;
+      AudioEngine.playSFX('death');
+      _spawnDeathFX(this);
+    }
+  }
+}
+
 // ── Boss ──────────────────────────────────────────────────────────────────
 
 class BossEnemy {
@@ -429,6 +522,10 @@ class BossEnemy {
     this.bulletMult       = _floorMult(C.FLOOR_BOSS_BULLETS_BONUS,  C.FLOOR_BOSS_BULLETS_CAP);
     this.prevPhase        = 1;
     this.transitionTimer  = 0;
+    this.spiralActive      = false;
+    this.spiralAngle       = 0;
+    this.spiralBulletsLeft = 0;
+    this.spiralInterval    = 0;
     // Per-instance static deformation: radial offset per skull vertex (8 points)
     this.deform           = Array.from({ length: 8 }, () => randFloat(-1, 1));
   }
@@ -483,12 +580,36 @@ class BossEnemy {
       if (push) { this.pos.x += push.x; this.pos.y += push.y; }
     }
 
+    // Spiral attack — fires one bullet per interval while active (phase 3 only)
+    if (this.spiralActive) {
+      this.spiralInterval--;
+      if (this.spiralInterval <= 0) {
+        const vx = Math.cos(this.spiralAngle) * C.BOSS_BULLET_SPEED;
+        const vy = Math.sin(this.spiralAngle) * C.BOSS_BULLET_SPEED;
+        const ox = Math.cos(this.spiralAngle) * (this.radius + 6);
+        const oy = Math.sin(this.spiralAngle) * (this.radius + 6);
+        G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.BOSS_BULLET_DAMAGE);
+        this.spiralAngle += C.BOSS_SPIRAL_ROT;
+        this.spiralBulletsLeft--;
+        this.spiralInterval = C.BOSS_SPIRAL_INTERVAL;
+        if (this.spiralBulletsLeft <= 0) this.spiralActive = false;
+      }
+    }
+
     // Fire
     this.fireTimer--;
     const baseRate = this.phase === 1 ? 120 : this.phase === 2 ? 80 : 55;
     const fireRate = Math.max(10, Math.round(baseRate / this.firerateMult));
     if (this.fireTimer <= 0) {
-      this._fireBurst();
+      if (this.phase === 3 && !this.spiralActive && Math.random() < 0.35) {
+        // Start spiral attack
+        this.spiralActive      = true;
+        this.spiralAngle       = randFloat(0, Math.PI * 2);
+        this.spiralBulletsLeft = C.BOSS_SPIRAL_BULLETS;
+        this.spiralInterval    = C.BOSS_SPIRAL_INTERVAL;
+      } else {
+        this._fireBurst();
+      }
       this.fireTimer = fireRate;
     }
   }
@@ -527,11 +648,12 @@ class BossEnemy {
 // ── Death FX + drops ──────────────────────────────────────────────────────
 
 function _spawnDeathFX(enemy) {
-  const col = enemy.type === 'ghost'      ? (enemy.variant === 'lunge' ? C.COL_LUNGE_GHOST : '#cc88ff')
-            : enemy.type === 'ghoul'      ? C.COL_GHOUL
-            : enemy.type === 'long_ghoul' ? C.COL_LONG_GHOUL
-            : enemy.type === 'mummy'      ? C.COL_MUMMY
-            : enemy.type === 'mummy_boss' ? C.COL_MUMMY_BOSS
+  const col = enemy.type === 'ghost'       ? (enemy.variant === 'lunge' ? C.COL_LUNGE_GHOST : '#cc88ff')
+            : enemy.type === 'ghoul'       ? C.COL_GHOUL
+            : enemy.type === 'long_ghoul'  ? C.COL_LONG_GHOUL
+            : enemy.type === 'mummy'       ? C.COL_MUMMY
+            : enemy.type === 'mummy_boss'  ? C.COL_MUMMY_BOSS
+            : enemy.type === 'white_skull' ? C.COL_WHITE_SKULL
             : enemy.type === 'boss'       ? '#ff2222'
             : '#ff6644';
   if (enemy.type === 'boss' || enemy.type === 'mummy_boss') {
@@ -925,6 +1047,23 @@ function _longGhoulChance() {
   return Math.min(0.80, Math.max(0.05, (G.floor - 1) * 0.20));
 }
 
+// White skull probability: 0 below floor 3, ~20% floor 3, up to ~60% floor 5+
+function _whiteSkullChance() {
+  if ((G.floor || 1) < 3) return 0;
+  return Math.min(0.60, 0.20 + ((G.floor || 1) - 3) * 0.20);
+}
+
+function spawnWhiteSkulls(room, px, py) {
+  const z = _spawnZone(room);
+  for (let i = 0; i < 30; i++) {
+    const x = randFloat(z.minX, z.maxX);
+    const y = randFloat(z.minY, z.maxY);
+    if (_validPos(x, y, C.WHITE_SKULL_RADIUS, room, 120, px, py))
+      return [new WhiteSkullEnemy(x, y)];
+  }
+  return [];
+}
+
 function spawnLongGhouls(room, px, py) {
   const longGhouls = [];
   const count      = Math.max(1, Math.floor(room.enemyCount / 4));
@@ -943,11 +1082,13 @@ function spawnEnemies(room, px, py) {
   let enemies;
   if (room.type === 'boss')        enemies = spawnBoss();
   else if (room.type === 'skull') {
-    const lg = Math.random() < _longGhoulChance() ? spawnLongGhouls(room, px, py) : [];
-    enemies = [...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg];
+    const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
+    const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
+    enemies = [...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws];
   } else if (room.type === 'mixed') {
-    const lg = Math.random() < _longGhoulChance() ? spawnLongGhouls(room, px, py) : [];
-    enemies = [...spawnGhosts(room, px, py), ...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg];
+    const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
+    const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
+    enemies = [...spawnGhosts(room, px, py), ...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws];
   }
   else                             enemies = spawnGhosts(room, px, py);
 

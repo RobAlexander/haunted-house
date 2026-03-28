@@ -42,6 +42,18 @@ const C = {
   SKULL_FIRE_RATE:     60,   // frames between shots
   SKULL_PATROL_RANGE:  110,  // px either side of spawn
 
+  // White Skull enemy (floor 3+) — weaving shots + scatter burst
+  WHITE_SKULL_HP:            80,
+  WHITE_SKULL_RADIUS:        14,
+  WHITE_SKULL_SPEED:         2.2,
+  WHITE_SKULL_BULLET_SPEED:  3.5,
+  WHITE_SKULL_BULLET_DAMAGE: 12,
+  WHITE_SKULL_FIRE_RATE:     70,    // frames between shots
+  WHITE_SKULL_SCATTER_COUNT: 8,     // bullets in scatter burst
+  WHITE_SKULL_NEAR_RANGE:    100,   // player distance below which scatter is preferred
+  WHITE_SKULL_WEAVE_FREQ:    0.10,  // radians/frame oscillation
+  WHITE_SKULL_WEAVE_MAX_DEV: 0.65,  // max angular deviation from straight (radians)
+
   // Boss enemy
   BOSS_RADIUS:            28,
   BOSS_HP:                300,
@@ -51,11 +63,15 @@ const C = {
   BOSS_BULLET_SPEED:      4,
   BOSS_BULLET_DAMAGE:     20,
   BOSS_PHASE_TRANSITION_FRAMES: 120,  // 2s invulnerability + yellow glow on phase change
+  BOSS_SPIRAL_BULLETS:    18,         // bullets per spiral attack (phase 3 only)
+  BOSS_SPIRAL_INTERVAL:   3,          // frames between each spiral bullet
+  BOSS_SPIRAL_ROT:        0.75,       // radians added to angle each bullet (~2.1 rotations total)
 
   // Score
-  SCORE_GHOST:    10,
-  SCORE_SKULL: 25,
-  SCORE_BOSS:     200,
+  SCORE_GHOST:       10,
+  SCORE_SKULL:       25,
+  SCORE_WHITE_SKULL: 50,
+  SCORE_BOSS:        200,
 
   // Spawn safety
   ENEMY_SPAWN_PLAYER_SAFE_R: 150,  // min px between any enemy spawn and the player's entry point
@@ -81,6 +97,7 @@ const C = {
 
   COL_GHOST:       '#cc88ff',
   COL_SKULL:       '#ff6644',
+  COL_WHITE_SKULL: '#d8e0ff',
   COL_BOSS:        '#ff2222',
   COL_BOSS_BULLET: '#ff8844',
   COL_PICKUP:      '#ffcc00',

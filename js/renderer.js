@@ -407,8 +407,9 @@ const Renderer = {
       if (!e.alive) continue;
       if (e.shielded) this._drawEnemyShield(e);
       if (e.type === 'ghost')    this._drawGhost(e);
-      if (e.type === 'skull') this._drawSkull(e);
-      if (e.type === 'boss')     this._drawBoss(e);
+      if (e.type === 'skull')       this._drawSkull(e);
+      if (e.type === 'white_skull') this._drawWhiteSkull(e);
+      if (e.type === 'boss')        this._drawBoss(e);
       if (e.type === 'ghoul')      this._drawGhoul(e);
       if (e.type === 'long_ghoul') this._drawLongGhoul(e);
       if (e.type === 'mummy')      this._drawMummy(e);
@@ -499,6 +500,50 @@ const Renderer = {
 
     // Teeth
     noFill(); stroke(C.COL_SKULL); strokeWeight(1.5);
+    const ty = cy + 6 + d[2] * 1.5;
+    const ts = 5 + d[3];
+    for (let i = -1; i <= 1; i++) {
+      line(x + i * ts, ty, x + i * ts, ty + 4);
+    }
+
+    this._drawEnemyHP(e, x, y - 18);
+  },
+
+  _drawWhiteSkull(e) {
+    const x = e.pos.x, y = e.pos.y;
+    const d  = e.deform;
+    const cy = y - 1;
+    const col = C.COL_WHITE_SKULL;
+
+    // Faint outer glow ring
+    const glowA = 0.12 + 0.10 * Math.sin(G.frame * 0.07 + x * 0.03);
+    drawingContext.globalAlpha = glowA;
+    noStroke(); fill(col);
+    circle(x, cy, (e.radius + 8) * 2);
+    drawingContext.globalAlpha = 1;
+
+    // Irregular head outline
+    noFill(); stroke(col); strokeWeight(1.8);
+    const hp = e.headPts, n = hp.length;
+    beginShape();
+    curveVertex(x + hp[n-1][0], cy + hp[n-1][1]);
+    for (const [ox, oy] of hp) curveVertex(x + ox, cy + oy);
+    curveVertex(x + hp[0][0], cy + hp[0][1]);
+    curveVertex(x + hp[1][0], cy + hp[1][1]);
+    endShape(CLOSE);
+
+    // Eye sockets — pale blue-white pupils
+    const lex = x - 5 + d[0] * 1.5, rex = x + 5 + d[1] * 1.5, ey = cy - 4;
+    noStroke(); fill(C.COL_BG);
+    circle(lex, ey, 7); circle(rex, ey, 7);
+    const glow = 0.7 + 0.3 * Math.sin(G.frame * 0.12 + x * 0.02);
+    drawingContext.globalAlpha = glow;
+    fill(col);
+    circle(lex, ey, 4); circle(rex, ey, 4);
+    drawingContext.globalAlpha = 1;
+
+    // Teeth
+    noFill(); stroke(col); strokeWeight(1.5);
     const ty = cy + 6 + d[2] * 1.5;
     const ts = 5 + d[3];
     for (let i = -1; i <= 1; i++) {
@@ -789,6 +834,18 @@ const Renderer = {
       drawingContext.globalAlpha = (phase - 1) * 0.12;
       noStroke(); fill(col);
       circle(x, y - r * 0.1, r * 2.8);
+      drawingContext.globalAlpha = 1;
+    }
+
+    // Spiral attack indicator — 4 spinning arms radiating outward
+    if (e.spiralActive) {
+      drawingContext.globalAlpha = 0.75;
+      stroke('#ffee00'); strokeWeight(2.5); noFill();
+      for (let i = 0; i < 4; i++) {
+        const a = e.spiralAngle + (Math.PI / 2) * i;
+        line(x + Math.cos(a) * (r + 4),  y + Math.sin(a) * (r + 4),
+             x + Math.cos(a) * (r + 22), y + Math.sin(a) * (r + 22));
+      }
       drawingContext.globalAlpha = 1;
     }
 
@@ -1319,7 +1376,8 @@ const Renderer = {
       { col: C.COL_PLAYER,      label: 'start'    },
       { col: C.COL_GHOST,       label: 'ghost'    },
       { col: C.COL_LUNGE_GHOST, label: 'lunge ghost' },
-      { col: C.COL_SKULL,    label: 'skull' },
+      { col: C.COL_SKULL,       label: 'skull'      },
+      { col: C.COL_WHITE_SKULL, label: 'white skull' },
       { col: C.COL_GHOUL,       label: 'ghoul'    },
       { col: C.COL_LONG_GHOUL, label: 'long ghoul' },
       { col: C.COL_MUMMY,     label: 'mummy'      },

@@ -7,9 +7,10 @@ class Bullet {
     this.owner  = 'player';   // 'player' | 'enemy'
     this.damage = C.BULLET_DAMAGE;
     this.radius = C.BULLET_RADIUS;
+    this.weave  = null;       // set by fireWeaving(); null for straight shots
   }
 
-  deactivate() { this.active = false; }
+  deactivate() { this.active = false; this.weave = null; }
 }
 
 class BulletPool {
@@ -32,6 +33,29 @@ class BulletPool {
     b.owner    = owner  || 'player';
     b.damage   = damage || C.BULLET_DAMAGE;
     b.radius   = radius !== undefined ? radius : C.BULLET_RADIUS;
+    b.weave    = null;
+  }
+
+  // Fire a bullet that weaves side to side along its flight path.
+  fireWeaving(x, y, vx, vy, owner, damage) {
+    const b = this.pool.find(b => !b.active);
+    if (!b) return;
+    b.active   = true;
+    b.pos.x    = x;
+    b.pos.y    = y;
+    b.vel.x    = vx;
+    b.vel.y    = vy;
+    b.ttl      = C.BULLET_TTL;
+    b.owner    = owner  || 'enemy';
+    b.damage   = damage || C.BULLET_DAMAGE;
+    b.radius   = C.BULLET_RADIUS;
+    b.weave    = {
+      baseAngle: Math.atan2(vy, vx),
+      speed:     Math.hypot(vx, vy),
+      freq:      C.WHITE_SKULL_WEAVE_FREQ,
+      maxDev:    C.WHITE_SKULL_WEAVE_MAX_DEV,
+      age:       0,
+    };
   }
 
   update(player, enemies, room) {
@@ -39,6 +63,14 @@ class BulletPool {
 
     for (const b of this.pool) {
       if (!b.active) continue;
+
+      // Weaving bullets: steer velocity along a sinusoidal arc
+      if (b.weave) {
+        b.weave.age++;
+        const dev = Math.sin(b.weave.age * b.weave.freq) * b.weave.maxDev;
+        b.vel.x = Math.cos(b.weave.baseAngle + dev) * b.weave.speed;
+        b.vel.y = Math.sin(b.weave.baseAngle + dev) * b.weave.speed;
+      }
 
       b.pos.x += b.vel.x;
       b.pos.y += b.vel.y;

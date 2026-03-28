@@ -81,11 +81,12 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | Ghost | 30 | Always chases; contact damage | 15 | 10 |
 | Lunge ghost | 30 | As ghost; brief 2.4× speed bursts every 60–140f | 15 | 10 |
 | Skull | 50 | Patrols; fires toward player every 60f | 10/bullet | 25 |
+| White Skull | 80 | Like skull; fires weaving sinusoidal bullets; occasionally fires 8-bullet scatter burst (75% chance when player is very close); floor 3+ | 12/bullet | 50 |
 | Ghoul | 50 | Slow crawl; leaps at 5.5× speed when in range | 40/contact | 35 |
 | Long Ghoul | 100 | Like Ghoul but with 5 legs (one always longer), scrunched body, grey-white; leaps far more often (cooldown 20–55f) | 40/contact | 70 |
 | Mummy | 225 | Rises from tomb over 3s (invulnerable); then pursues slowly; periodically releases fly swarms; never on floor 1 | 25/contact | 80 |
 | Mummy Fly | 5 | Pursues player; individual droning sound; 7s lifetime; small—easier to avoid than shoot | 8/contact | 3 |
-| Boss (Skull) | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change; odd floors | 20/bullet | 200 |
+| Boss (Skull) | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change; phase 3 occasionally fires a 18-bullet spiral instead of burst (35% chance); spinning arm visual indicator; odd floors | 20/bullet | 200 |
 | Boss (Mummy) | 400 | Like skull boss (3 phases) but releases fly swarms each phase; even floors | 20/bullet | 200 |
 
 All enemy movement speeds and boss fire rate / bullet count scale with floor number (see `FLOOR_*` constants).
@@ -143,3 +144,6 @@ Open with `` ` ``. Tab-completes commands.
 - **Mummy enemy** — `room.hasMummy` flag set in DungeonGraph; spawned by `spawnEnemies()` in addition to the room's normal enemies. Rises over `MUMMY_RISE_FRAMES` (180f) — invulnerable, drawing shifts down and fades in; ground cracks shown. After rising, pursues slowly and periodically releases fly swarms (`_releaseFlies()`). Floor 2+ only; probability `min(50%, 10%+(floor-2)×10%)`; at most 1 per floor.
 - **MummyFly** — lives in `G.flies[]` (separate from `G.enemies[]`) so flies don't block room-cleared detection. Per-fly `droneFreq` (90–170Hz); calls `AudioEngine.playFlyBuzz(freq)` every 80–160f. 420f (7s) lifetime, then disappears. Can be shot but very small (score 3 each).
 - **LongGhoul** — `_longGhoulChance()` = `min(80%, max(5%, (floor-1)×20%))`; substituted for regular Ghoul spawns. 5 legs (index 4 always 22–29px), scrunched body, grey-white color, 2× HP (100), leap cooldown 20–55f (vs 60–140f), plays `long_ghoul_leap` SFX.
+- **WhiteSkull** — `_whiteSkullChance()` = 0 below floor 3, then `min(60%, 20%+(floor-3)×20%)`; at most 1 per room. Fires weaving bullets (`BulletPool.fireWeaving()`) with sinusoidal arc; also fires 8-bullet scatter burst (reuses boss_fire SFX). Scatter probability: 75% when player dist < `WHITE_SKULL_NEAR_RANGE` (100px), else 20%. Near-white/blue-tinted colour with glow ring.
+- **Weaving bullets** — `Bullet.weave = { baseAngle, speed, freq, maxDev, age }`. Each frame in `BulletPool.update()`, if `b.weave` set: `dev = sin(age * freq) * maxDev`, velocity recomputed as `(cos(baseAngle+dev), sin(baseAngle+dev)) * speed`. Cleared on deactivate/refire.
+- **Boss spiral attack** — phase 3 only; 35% chance to trigger instead of regular burst when `fireTimer` expires. Fires `BOSS_SPIRAL_BULLETS` (18) bullets one per `BOSS_SPIRAL_INTERVAL` (3) frames, rotating angle by `BOSS_SPIRAL_ROT` (0.75 rad) each bullet (~2.1 full rotations). `spiralActive` flag prevents overlapping spirals. Visual: 4 rotating arm lines at `e.spiralAngle`.

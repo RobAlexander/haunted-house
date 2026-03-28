@@ -146,7 +146,7 @@ function mouseReleased() {
 
 const DEV_COMMANDS = [
   'boss', 'fullmap', 'help', 'power', 'setfloor',
-  'spawn_ghost', 'spawn_ghoul', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_red_ghost', 'spawn_skull',
+  'spawn_ghost', 'spawn_ghoul', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
 function _devSpawn(EnemyClass, overrides) {
@@ -220,7 +220,8 @@ function _execDevCommand(cmd) {
   if (cmd === 'spawn_skull')     return _devSpawn(SkullEnemy);
   if (cmd === 'spawn_ghoul')      return _devSpawn(GhoulEnemy);
   if (cmd === 'spawn_long_ghoul') return _devSpawn(LongGhoulEnemy);
-  if (cmd === 'spawn_mummy')      return _devSpawn(MummyEnemy);
+  if (cmd === 'spawn_mummy')       return _devSpawn(MummyEnemy);
+  if (cmd === 'spawn_white_skull') return _devSpawn(WhiteSkullEnemy);
   if (cmd === 'help' || cmd === '') {
     return DEV_COMMANDS.join('  ');
   }
