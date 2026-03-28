@@ -250,7 +250,7 @@ function checkMaxHpPowerup() {
     G.player.hp    = Math.min(G.player.hp + Math.round(G.player.maxHp * 0.20), G.player.maxHp);
     room.maxhpPowerupTaken  = true;
     room.maxhpPowerupActive = false;
-    AudioEngine.playSFX('pickup');
+    AudioEngine.playSFX('maxhp_fanfare');
   }
 }
 

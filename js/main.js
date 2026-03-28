@@ -145,7 +145,7 @@ function mouseReleased() {
 }
 
 const DEV_COMMANDS = [
-  'boss', 'fullmap', 'help', 'power', 'setfloor',
+  'boss', 'fullmap', 'help', 'power', 'setfloor', 'spawn_maxhp',
   'spawn_ghost', 'spawn_ghoul', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_nuckelavee', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
@@ -216,6 +216,15 @@ function _execDevCommand(cmd) {
     return `Floor set to ${f} (speed ×${speedMult.toFixed(2)}, damage ×${damageMult.toFixed(2)}).`;
   }
   if (cmd === 'spawn_nuckelavee') return _devSpawn(NuckelaveeEnemy);
+  if (cmd === 'spawn_maxhp') {
+    if (G.state !== STATES.PLAYING) return 'Start a game first.';
+    const room = G.currentRoom;
+    if (!room) return 'No room.';
+    room.maxhpPowerup       = { x: G.player.pos.x + 40, y: G.player.pos.y };
+    room.maxhpPowerupActive = true;
+    room.maxhpPowerupTaken  = false;
+    return 'Max-HP powerup spawned.';
+  }
   if (cmd === 'spawn_ghost')     return _devSpawn(GhostEnemy);
   if (cmd === 'spawn_red_ghost') return _devSpawn(GhostEnemy, { variant: 'lunge' });
   if (cmd === 'spawn_skull')     return _devSpawn(SkullEnemy);

@@ -249,7 +249,8 @@ const AudioEngine = (() => {
       case 'boss_enter':  _sfxBossEnter(now);  break;
       case 'boss_phase':  _sfxBossPhase(now);  break;
       case 'game_over':   _sfxGameOver(now);   break;
-      case 'win':         _sfxWin(now);        break;
+      case 'maxhp_fanfare': _sfxMaxhpFanfare(now); break;
+      case 'win':           _sfxWin(now);          break;
     }
   }
 
@@ -715,6 +716,48 @@ const AudioEngine = (() => {
       osc.start(t);
       osc.stop(t + 2.6);
     });
+  }
+
+  // Triumphant rising run + chord bloom — max-HP pickup fanfare
+  function _sfxMaxhpFanfare(now) {
+    // Five ascending triangle-wave notes (C major pentatonic, two octaves)
+    const run = [523, 659, 784, 988, 1047];
+    run.forEach((freq, i) => {
+      const t   = now + i * 0.09;
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type            = 'triangle';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.16, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      osc.connect(g); g.connect(reverb); g.connect(master);
+      osc.start(t); osc.stop(t + 0.25);
+    });
+
+    // Chord bloom: C major triad one octave up, sustained with reverb tail
+    const chordT = now + run.length * 0.09;
+    [1047, 1319, 1568].forEach(freq => {
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type            = 'sine';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.12, chordT);
+      g.gain.exponentialRampToValueAtTime(0.0001, chordT + 0.9);
+      osc.connect(g); g.connect(reverb);
+      osc.start(chordT); osc.stop(chordT + 0.95);
+    });
+
+    // High sparkle sweep above the chord
+    const sparkOsc = ctx.createOscillator();
+    const sparkG   = ctx.createGain();
+    sparkOsc.type = 'sine';
+    sparkOsc.frequency.setValueAtTime(2093, chordT);
+    sparkOsc.frequency.linearRampToValueAtTime(3136, chordT + 0.45);
+    sparkG.gain.setValueAtTime(0, chordT);
+    sparkG.gain.linearRampToValueAtTime(0.05, chordT + 0.1);
+    sparkG.gain.exponentialRampToValueAtTime(0.0001, chordT + 0.75);
+    sparkOsc.connect(sparkG); sparkG.connect(reverb);
+    sparkOsc.start(chordT); sparkOsc.stop(chordT + 0.8);
   }
 
   // Ascending major arpeggio + shimmer
