@@ -410,8 +410,9 @@ const Renderer = {
       if (e.type === 'skull')       this._drawSkull(e);
       if (e.type === 'white_skull') this._drawWhiteSkull(e);
       if (e.type === 'boss')        this._drawBoss(e);
-      if (e.type === 'ghoul')      this._drawGhoul(e);
-      if (e.type === 'long_ghoul') this._drawLongGhoul(e);
+      if (e.type === 'ghoul')       this._drawGhoul(e);
+      if (e.type === 'long_ghoul')  this._drawLongGhoul(e);
+      if (e.type === 'nuckelavee')  this._drawNuckelavee(e);
       if (e.type === 'mummy')      this._drawMummy(e);
       if (e.type === 'mummy_boss') this._drawMummyBoss(e);
     }
@@ -644,6 +645,68 @@ const Renderer = {
     drawingContext.globalAlpha = 1;
 
     this._drawEnemyHP(e, x, y - r - 8);
+  },
+
+  _drawNuckelavee(e) {
+    const x = e.pos.x, y = e.pos.y;
+    const col  = C.COL_NUCKELAVEE;
+    const vein = C.COL_NUCKELAVEE_VEIN;
+    const hw = 22, hh = 11;   // horse body half-width, half-height
+
+    // Aura ring — faint pulsing danger zone at the full aura radius
+    const auraAlpha = 0.07 + 0.04 * Math.sin(G.frame * 0.055);
+    drawingContext.globalAlpha = auraAlpha;
+    noFill(); stroke(col); strokeWeight(2);
+    circle(x, y, C.NUCKELAVEE_AURA_RADIUS * 2);
+    drawingContext.globalAlpha = 1;
+
+    // Horse body — horizontal ellipse
+    noFill(); stroke(col); strokeWeight(1.5);
+    ellipse(x, y, hw * 2, hh * 2);
+
+    // Sinew / muscle lines within the horse body (exposed anatomy detail)
+    stroke(vein); strokeWeight(0.75);
+    for (const [x1f, y1f, x2f, y2f] of e.sinewLines) {
+      line(x + x1f * hw, y + y1f * hh, x + x2f * hw, y + y2f * hh);
+    }
+
+    // Rider — merged at horse back (top of ellipse), grows upward
+    const rBase = y - hh;      // where rider meets horse
+    const rTop  = rBase - 22;  // shoulder height
+    stroke(col); strokeWeight(1.5);
+    // Torso sides
+    line(x - 8, rBase, x - 6, rTop);
+    line(x + 8, rBase, x + 6, rTop);
+    // Torso bottom connecting line
+    line(x - 8, rBase, x + 8, rBase);
+    // Internal cross-sinews on torso
+    stroke(vein); strokeWeight(0.7);
+    line(x - 7, rBase - 3, x + 6, rTop + 5);
+    line(x + 7, rBase - 3, x - 6, rTop + 5);
+
+    // Grotesquely long arms hanging below horse body level
+    stroke(col); strokeWeight(1.5);
+    line(x - 6, rTop, x - hw + 2, y + e.armDrop[0]);
+    line(x + 6, rTop, x + hw - 2, y + e.armDrop[1]);
+
+    // Head — very large circle, slightly offset (the folklore head is huge)
+    const headR = 10;
+    const headX = x - 2, headY = rTop - headR - 1;
+    noFill(); stroke(col); strokeWeight(1.5);
+    circle(headX, headY, headR * 2);
+    // Snout line (pig-like snout in folklore)
+    line(headX - 4, headY + 3, headX + 4, headY + 3);
+
+    // Single massive eye — the defining feature; pulsing
+    const eyePulse = 0.72 + 0.28 * Math.abs(Math.sin(G.frame * 0.07));
+    drawingContext.globalAlpha = eyePulse;
+    noStroke(); fill(vein);
+    ellipse(headX + 1, headY - 1, e.eyeSize * 1.9, e.eyeSize * 1.2);
+    fill('#1a0505');
+    ellipse(headX + 1, headY - 1, e.eyeSize * 0.75, e.eyeSize * 0.45);
+    drawingContext.globalAlpha = 1;
+
+    this._drawEnemyHP(e, x, y - hh - headR * 2 - 14);
   },
 
   _drawMummyBody(x, ry, col, scale, mouthOpen) {
@@ -1385,8 +1448,9 @@ const Renderer = {
       { col: C.COL_LUNGE_GHOST, label: 'lunge ghost' },
       { col: C.COL_SKULL,       label: 'skull'      },
       { col: C.COL_WHITE_SKULL, label: 'white skull' },
-      { col: C.COL_GHOUL,       label: 'ghoul'    },
-      { col: C.COL_LONG_GHOUL, label: 'long ghoul' },
+      { col: C.COL_GHOUL,        label: 'ghoul'      },
+      { col: C.COL_LONG_GHOUL,  label: 'long ghoul' },
+      { col: C.COL_NUCKELAVEE,  label: 'nuckelavee' },
       { col: C.COL_MUMMY,     label: 'mummy'      },
       { col: '#ff9922',         label: 'mixed'    },
       { col: C.COL_BOSS,        label: 'boss'     },

@@ -146,7 +146,7 @@ function mouseReleased() {
 
 const DEV_COMMANDS = [
   'boss', 'fullmap', 'help', 'power', 'setfloor',
-  'spawn_ghost', 'spawn_ghoul', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
+  'spawn_ghost', 'spawn_ghoul', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_nuckelavee', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
 function _devSpawn(EnemyClass, overrides) {
@@ -215,6 +215,7 @@ function _execDevCommand(cmd) {
     const damageMult = 1 + (f-1)*C.FLOOR_DAMAGE_BONUS;
     return `Floor set to ${f} (speed ×${speedMult.toFixed(2)}, damage ×${damageMult.toFixed(2)}).`;
   }
+  if (cmd === 'spawn_nuckelavee') return _devSpawn(NuckelaveeEnemy);
   if (cmd === 'spawn_ghost')     return _devSpawn(GhostEnemy);
   if (cmd === 'spawn_red_ghost') return _devSpawn(GhostEnemy, { variant: 'lunge' });
   if (cmd === 'spawn_skull')     return _devSpawn(SkullEnemy);

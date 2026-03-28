@@ -199,4 +199,16 @@ const C = {
 
   COL_RAG_SYMBOL:      '#cc44ff',  // colour for R/A/G rune symbols
   RAG_SYMBOL_COLLECT_R: 20,        // collection radius in px
+
+  // Nuckelavee enemy — slow skinless horse-rider with proximity aura damage
+  NUCKELAVEE_HP:             180,
+  NUCKELAVEE_RADIUS:          22,
+  NUCKELAVEE_SPEED:            0.8,
+  NUCKELAVEE_CONTACT_DAMAGE:   30,
+  NUCKELAVEE_AURA_RADIUS:      65,   // px — distance at which aura damage ticks
+  NUCKELAVEE_AURA_DAMAGE:       1,   // HP per tick (invincibility frames gate frequency)
+  NUCKELAVEE_AURA_INTERVAL:     6,   // frames between aura damage attempts
+  SCORE_NUCKELAVEE:            90,
+  COL_NUCKELAVEE:        '#7a1818',  // dark blood-red for body outline
+  COL_NUCKELAVEE_VEIN:   '#cc6622',  // orange-yellow for exposed veins/eye
 };

@@ -88,6 +88,7 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | Mummy Fly | 5 | Pursues player; individual droning sound; 7s lifetime; small—easier to avoid than shoot | 8/contact | 3 |
 | Boss (Skull) | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change; phase 3 occasionally fires 18-bullet spiral (35% chance); floor 3+/phase 2+ spawns skull minions every 300f (phase 2) or 210f (phase 3); floor 5+ minions may be white skulls (50%); odd floors | 20/bullet | 200 |
 | Boss (Mummy) | 400 | Like skull boss (3 phases) but releases fly swarms each phase; phase 2+ spawns ghoul every 400f (phase 2) or 280f (phase 3); phase 3 also 40% chance to raise a small mummy alongside ghoul; even floors | 20/bullet | 200 |
+| Nuckelavee | 180 | Slow relentless pursuer (skinless horse-rider silhouette); emits toxic aura 65px radius — 1 HP per tick, gated by player invincibility frames; heavy body contact; one per skull/mixed room (25%, floor 2+); Orcadian folklore | 30/contact + 1/aura | 90 |
 
 All enemy movement speeds and boss fire rate / bullet count scale with floor number (see `FLOOR_*` constants).
 Incoming player damage scales up 10% per floor with no cap (`FLOOR_DAMAGE_BONUS`).
@@ -108,6 +109,7 @@ Open with `` ` ``. Tab-completes commands.
 | `spawn_ghoul` | Spawn a ghoul near player |
 | `spawn_long_ghoul` | Spawn a long ghoul near player |
 | `spawn_mummy` | Spawn a mummy near player |
+| `spawn_nuckelavee` | Spawn a nuckelavee near player |
 | `help` | List all commands |
 
 ## Architecture Notes

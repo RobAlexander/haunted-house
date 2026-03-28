@@ -327,6 +327,87 @@ class LongGhoulEnemy {
   }
 }
 
+// ── Nuckelavee ────────────────────────────────────────────────────────────
+
+class NuckelaveeEnemy {
+  constructor(x, y) {
+    this.pos             = { x, y };
+    this.vel             = { x: 0, y: 0 };
+    this.hp              = C.NUCKELAVEE_HP;
+    this.maxHp           = C.NUCKELAVEE_HP;
+    this.radius          = C.NUCKELAVEE_RADIUS;
+    this.type            = 'nuckelavee';
+    this.scoreValue      = C.SCORE_NUCKELAVEE;
+    this.alive           = true;
+    this.contactCooldown = 0;
+    this.auraCooldown    = 0;
+    this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.shielded        = false;
+    this.shieldFreezeTimer = 0;
+
+    // Pre-computed sinew crossing lines within the horse body.
+    // Each: [x1Frac, y1Frac, x2Frac, y2Frac] — fracs of horse half-width/height.
+    this.sinewLines = Array.from({ length: 9 }, () => [
+      randFloat(-0.88, 0.88), randFloat(-0.82, 0.82),
+      randFloat(-0.88, 0.88), randFloat(-0.82, 0.82),
+    ]);
+    // Per-instance arm drop lengths (how far below horse body each arm hangs)
+    this.armDrop  = [7 + randFloat(-3, 5), 10 + randFloat(-3, 5)];
+    this.eyeSize  = 5 + randFloat(0, 3);
+  }
+
+  update(player, room) {
+    if (!this.alive) return;
+    if (this.shieldFreezeTimer > 0) { this.shieldFreezeTimer--; return; }
+
+    // Slow relentless pursuit
+    const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+    this.vel.x = n.x * C.NUCKELAVEE_SPEED * this.speedMult;
+    this.vel.y = n.y * C.NUCKELAVEE_SPEED * this.speedMult;
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+    this._resolveCollisions(room);
+
+    // Aura damage — tick every NUCKELAVEE_AURA_INTERVAL frames when player close
+    if (this.auraCooldown > 0) this.auraCooldown--;
+    if (this.auraCooldown === 0) {
+      const dist = circleDist(this.pos.x, this.pos.y, player.pos.x, player.pos.y);
+      if (dist < C.NUCKELAVEE_AURA_RADIUS + player.radius) {
+        player.takeDamage(C.NUCKELAVEE_AURA_DAMAGE);
+      }
+      this.auraCooldown = C.NUCKELAVEE_AURA_INTERVAL;
+    }
+
+    // Body contact — heavier hit
+    if (this.contactCooldown > 0) this.contactCooldown--;
+    if (this.contactCooldown === 0 &&
+        circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
+      player.takeDamage(C.NUCKELAVEE_CONTACT_DAMAGE);
+      this.contactCooldown = C.GHOST_CONTACT_COOLDOWN;
+    }
+  }
+
+  _resolveCollisions(room) {
+    for (const w of getWallRects()) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, w.x, w.y, w.w, w.h);
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; }
+    }
+    for (const obs of room.obstacles) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, obs.x, obs.y, obs.w, obs.h);
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; }
+    }
+  }
+
+  takeDamage(amount) {
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.hp = 0; this.alive = false;
+      AudioEngine.playSFX('death');
+      _spawnDeathFX(this);
+    }
+  }
+}
+
 // ── Skull ─────────────────────────────────────────────────────────────────
 
 class SkullEnemy {
@@ -681,6 +762,7 @@ function _spawnDeathFX(enemy) {
   const col = enemy.type === 'ghost'       ? (enemy.variant === 'lunge' ? C.COL_LUNGE_GHOST : '#cc88ff')
             : enemy.type === 'ghoul'       ? C.COL_GHOUL
             : enemy.type === 'long_ghoul'  ? C.COL_LONG_GHOUL
+            : enemy.type === 'nuckelavee'  ? C.COL_NUCKELAVEE
             : enemy.type === 'mummy'       ? C.COL_MUMMY
             : enemy.type === 'mummy_boss'  ? C.COL_MUMMY_BOSS
             : enemy.type === 'white_skull' ? C.COL_WHITE_SKULL
@@ -1117,6 +1199,23 @@ function _longGhoulChance() {
   return Math.min(0.80, Math.max(0.05, (G.floor - 1) * 0.20));
 }
 
+// Nuckelavee: 0 on floor 1, ~25% from floor 2, capped at 30%. One per room maximum.
+function _nuckelaveeChance() {
+  if ((G.floor || 1) < 2) return 0;
+  return Math.min(0.30, 0.25);
+}
+
+function spawnNuckelavee(room, px, py) {
+  const z = _spawnZone(room);
+  for (let i = 0; i < 30; i++) {
+    const x = randFloat(z.minX, z.maxX);
+    const y = randFloat(z.minY, z.maxY);
+    if (_validPos(x, y, C.NUCKELAVEE_RADIUS, room, 130, px, py))
+      return [new NuckelaveeEnemy(x, y)];
+  }
+  return [];
+}
+
 // White skull probability: 0 below floor 3, ~20% floor 3, up to ~60% floor 5+
 function _whiteSkullChance() {
   if ((G.floor || 1) < 3) return 0;
@@ -1154,11 +1253,13 @@ function spawnEnemies(room, px, py) {
   else if (room.type === 'skull') {
     const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
     const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
-    enemies = [...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws];
+    const nk = Math.random() < _nuckelaveeChance() ? spawnNuckelavee(room, px, py)  : [];
+    enemies = [...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws, ...nk];
   } else if (room.type === 'mixed') {
     const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
     const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
-    enemies = [...spawnGhosts(room, px, py), ...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws];
+    const nk = Math.random() < _nuckelaveeChance() ? spawnNuckelavee(room, px, py)  : [];
+    enemies = [...spawnGhosts(room, px, py), ...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws, ...nk];
   }
   else                             enemies = spawnGhosts(room, px, py);
 
