@@ -178,7 +178,7 @@ const C = {
 
   // Enemy drops
   DROP_HEAL_AMOUNT:            20,   // HP restored by a drop
-  DROP_CHANCE:                 0.4,  // base drop probability per enemy death (floor 1, baseline avg)
+  DROP_CHANCE:                 0.2,  // base drop probability per enemy death (floor 1, baseline avg)
   DROP_HEAL_BASELINE_ENEMIES:  2.5,  // expected avg enemies/room on floor 1 (anchor for drop-rate scaling)
 
   // SFX volumes (0–1)
