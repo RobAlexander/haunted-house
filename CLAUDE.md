@@ -86,8 +86,8 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | Long Ghoul | 100 | Like Ghoul but with 5 legs (one always longer), scrunched body, grey-white; leaps far more often (cooldown 20–55f) | 40/contact | 70 |
 | Mummy | 225 | Rises from tomb over 3s (invulnerable); then pursues slowly; periodically releases fly swarms; never on floor 1 | 25/contact | 80 |
 | Mummy Fly | 5 | Pursues player; individual droning sound; 7s lifetime; small—easier to avoid than shoot | 8/contact | 3 |
-| Boss (Skull) | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change; phase 3 occasionally fires a 18-bullet spiral instead of burst (35% chance); spinning arm visual indicator; odd floors | 20/bullet | 200 |
-| Boss (Mummy) | 400 | Like skull boss (3 phases) but releases fly swarms each phase; even floors | 20/bullet | 200 |
+| Boss (Skull) | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change; phase 3 occasionally fires 18-bullet spiral (35% chance); floor 3+/phase 2+ spawns skull minions every 300f (phase 2) or 210f (phase 3); floor 5+ minions may be white skulls (50%); odd floors | 20/bullet | 200 |
+| Boss (Mummy) | 400 | Like skull boss (3 phases) but releases fly swarms each phase; phase 2+ spawns ghoul every 400f (phase 2) or 280f (phase 3); phase 3 also 40% chance to raise a small mummy alongside ghoul; even floors | 20/bullet | 200 |
 
 All enemy movement speeds and boss fire rate / bullet count scale with floor number (see `FLOOR_*` constants).
 Incoming player damage scales up 10% per floor with no cap (`FLOOR_DAMAGE_BONUS`).

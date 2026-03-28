@@ -837,14 +837,22 @@ const Renderer = {
       drawingContext.globalAlpha = 1;
     }
 
-    // Spiral attack indicator — 4 spinning arms radiating outward
+    // Spiral attack indicator — arms spin as wind-up warning, then follow bullets
     if (e.spiralActive) {
-      drawingContext.globalAlpha = 0.75;
-      stroke('#ffee00'); strokeWeight(2.5); noFill();
+      const isWarning = e.spiralWarning > 0;
+      // Warning: arms spin fast and pulse; firing: arms steadier at bullet angle
+      const pulse = isWarning
+        ? 0.5 + 0.5 * Math.sin(G.frame * 0.35)   // fast pulse during wind-up
+        : 0.65;
+      drawingContext.globalAlpha = pulse;
+      stroke('#ffee00');
+      strokeWeight(isWarning ? 3 : 2.5);
+      noFill();
+      const armLen = isWarning ? 26 : 20;
       for (let i = 0; i < 4; i++) {
         const a = e.spiralAngle + (Math.PI / 2) * i;
         line(x + Math.cos(a) * (r + 4),  y + Math.sin(a) * (r + 4),
-             x + Math.cos(a) * (r + 22), y + Math.sin(a) * (r + 22));
+             x + Math.cos(a) * (r + armLen), y + Math.sin(a) * (r + armLen));
       }
       drawingContext.globalAlpha = 1;
     }

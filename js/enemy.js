@@ -523,9 +523,11 @@ class BossEnemy {
     this.prevPhase        = 1;
     this.transitionTimer  = 0;
     this.spiralActive      = false;
+    this.spiralWarning     = 0;    // countdown warning before bullets start
     this.spiralAngle       = 0;
     this.spiralBulletsLeft = 0;
     this.spiralInterval    = 0;
+    this.minionTimer       = 240;  // frames until first skull minion spawn
     // Per-instance static deformation: radial offset per skull vertex (8 points)
     this.deform           = Array.from({ length: 8 }, () => randFloat(-1, 1));
   }
@@ -580,19 +582,24 @@ class BossEnemy {
       if (push) { this.pos.x += push.x; this.pos.y += push.y; }
     }
 
-    // Spiral attack — fires one bullet per interval while active (phase 3 only)
+    // Spiral attack — arms spin as warning first, then bullets fire
     if (this.spiralActive) {
-      this.spiralInterval--;
-      if (this.spiralInterval <= 0) {
-        const vx = Math.cos(this.spiralAngle) * C.BOSS_BULLET_SPEED;
-        const vy = Math.sin(this.spiralAngle) * C.BOSS_BULLET_SPEED;
-        const ox = Math.cos(this.spiralAngle) * (this.radius + 6);
-        const oy = Math.sin(this.spiralAngle) * (this.radius + 6);
-        G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.BOSS_BULLET_DAMAGE);
-        this.spiralAngle += C.BOSS_SPIRAL_ROT;
-        this.spiralBulletsLeft--;
-        this.spiralInterval = C.BOSS_SPIRAL_INTERVAL;
-        if (this.spiralBulletsLeft <= 0) this.spiralActive = false;
+      if (this.spiralWarning > 0) {
+        this.spiralWarning--;
+        this.spiralAngle += 0.14;   // fast visible spin during wind-up
+      } else {
+        this.spiralInterval--;
+        if (this.spiralInterval <= 0) {
+          const vx = Math.cos(this.spiralAngle) * C.BOSS_BULLET_SPEED;
+          const vy = Math.sin(this.spiralAngle) * C.BOSS_BULLET_SPEED;
+          const ox = Math.cos(this.spiralAngle) * (this.radius + 6);
+          const oy = Math.sin(this.spiralAngle) * (this.radius + 6);
+          G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.BOSS_BULLET_DAMAGE);
+          this.spiralAngle += C.BOSS_SPIRAL_ROT;
+          this.spiralBulletsLeft--;
+          this.spiralInterval = C.BOSS_SPIRAL_INTERVAL;
+          if (this.spiralBulletsLeft <= 0) this.spiralActive = false;
+        }
       }
     }
 
@@ -602,8 +609,9 @@ class BossEnemy {
     const fireRate = Math.max(10, Math.round(baseRate / this.firerateMult));
     if (this.fireTimer <= 0) {
       if (this.phase === 3 && !this.spiralActive && Math.random() < 0.35) {
-        // Start spiral attack
+        // Start spiral attack with a 50-frame wind-up warning
         this.spiralActive      = true;
+        this.spiralWarning     = 50;
         this.spiralAngle       = randFloat(0, Math.PI * 2);
         this.spiralBulletsLeft = C.BOSS_SPIRAL_BULLETS;
         this.spiralInterval    = C.BOSS_SPIRAL_INTERVAL;
@@ -611,6 +619,19 @@ class BossEnemy {
         this._fireBurst();
       }
       this.fireTimer = fireRate;
+    }
+
+    // Skull minion spawning — phase 2+ on floor 3+
+    if ((G.floor || 1) >= 3 && this.phase >= 2) {
+      this.minionTimer--;
+      if (this.minionTimer <= 0) {
+        const interval = this.phase === 3 ? 210 : 300;
+        this.minionTimer = interval;
+        const useWhite = (G.floor || 1) >= 5 && Math.random() < 0.50;
+        const EClass = useWhite ? WhiteSkullEnemy : SkullEnemy;
+        const pos = _bossMinionPos(this.pos.x, this.pos.y, C.SKULL_RADIUS);
+        if (pos) G.enemies.push(new EClass(pos.x, pos.y));
+      }
     }
   }
 
@@ -880,6 +901,7 @@ class MummyBossEnemy {
     this.mouthOpen      = 0;
     this.wrappingPhase  = 0;
     this.contactCooldown = 0;
+    this.minionTimer    = 300;  // frames after rising until first minion spawn
   }
 
   get flyConfig() {
@@ -951,6 +973,23 @@ class MummyBossEnemy {
       this.mouthOpen = 50;
     }
 
+    // Minion spawning — phase 2+ spawns ghouls; phase 3 also sometimes spawns a small mummy
+    if (this.phase >= 2) {
+      this.minionTimer--;
+      if (this.minionTimer <= 0) {
+        const interval = this.phase === 3 ? 280 : 400;
+        this.minionTimer = interval;
+        // Always spawn a ghoul
+        const gp = _bossMinionPos(this.pos.x, this.pos.y, C.GHOUL_RADIUS);
+        if (gp) G.enemies.push(new GhoulEnemy(gp.x, gp.y));
+        // Phase 3: 40% chance to also raise a small mummy
+        if (this.phase === 3 && Math.random() < 0.40) {
+          const mp = _bossMinionPos(this.pos.x, this.pos.y, C.MUMMY_RADIUS);
+          if (mp) G.enemies.push(new MummyEnemy(mp.x, mp.y));
+        }
+      }
+    }
+
     // Contact damage
     if (this.contactCooldown > 0) this.contactCooldown--;
     if (this.contactCooldown === 0 &&
@@ -977,6 +1016,28 @@ class MummyBossEnemy {
 }
 
 // ── Spawn helpers ─────────────────────────────────────────────────────────
+
+// Find a position for a boss minion: random direction from boss, clear of walls/obstacles.
+function _bossMinionPos(bossX, bossY, radius) {
+  const zone = _spawnZone(G.currentRoom);
+  for (let i = 0; i < 40; i++) {
+    const a = randFloat(0, Math.PI * 2);
+    const d = 80 + Math.random() * 120;
+    const x = Math.max(zone.minX, Math.min(zone.maxX, bossX + Math.cos(a) * d));
+    const y = Math.max(zone.minY, Math.min(zone.maxY, bossY + Math.sin(a) * d));
+    let blocked = false;
+    for (const obs of G.currentRoom.obstacles) {
+      if (circleRectCollide(x, y, radius + 8, obs.x, obs.y, obs.w, obs.h)) { blocked = true; break; }
+    }
+    if (!blocked) {
+      for (const w of getWallRects()) {
+        if (circleRectCollide(x, y, radius + 8, w.x, w.y, w.w, w.h)) { blocked = true; break; }
+      }
+    }
+    if (!blocked) return { x, y };
+  }
+  return null;
+}
 
 function _spawnZone(_room) {
   const P      = C.ROOM_PADDING;
