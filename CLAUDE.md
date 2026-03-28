@@ -34,6 +34,7 @@ Open `index.html` directly in any modern browser to play.
 | 9 | ✅ Done | Long Ghoul + Mummy enemies, Mummy Boss, fly swarm, powerup inventory system, max-HP powerup |
 | 10 | ✅ Done | Nuckelavee enemy (aura damage + toxic breath particles), boss death clears minions/flies, max-HP fanfare SFX, drop rate tuning |
 | 11 | ✅ Done | Ghoul boss (3rd boss cycle), speed+invuln powerups, treasure map icons, nuckelavee poison trail, symbol pickup SFX+screen flicker, mummy death clears flies, fly death pop, +20% base damage, 4-symbol HUD fix |
+| 12 | ✅ Done | Ghoul boss leap SFX (deep bass `ghoul_boss_leap`), player death SFX replaced with multi-layer strangling horror sound |
 
 ## File Map
 
@@ -164,3 +165,5 @@ Open with `` ` ``. Tab-completes commands.
 - **Ghoul Boss** — `GhoulBossEnemy` class; floor cycle via `spawnBoss()`: `floor%3===1` → skull, `floor%3===2` → ghoul boss, `floor%3===0` → mummy boss. No bullets; pure contact/leap combat. Phase transition: 2s invuln + yellow glow ring (same as other bosses, handled in bullet.js `shieldR` check and `checkInvulnerableRepulsion()`). Uses skull-boss music mode. `spawn_ghoul_boss` dev command.
 - **Nuckelavee** — `_nuckelaveeChance()` = 25% from floor 2; one per skull/mixed room. Emits a toxic breath cloud: per-instance `breathParticles[]` (max ~20 live), each spawned every 2 frames within the 65px aura radius, drifting with slow random walk, rendered as `COL_FLY` (#44ff66) circles with fade-in/out alpha. Aura also deals 1 HP per 6-frame tick (gated by player invincibility frames). **Poison trail**: `trailParticles[]` spawned every 6 frames at current position, live for 200f (~3.3s), drift slowly upward; contact with a trail wisp deals 1 HP per 8-frame tick. Trail rendered behind enemies (before `drawEnemies` in draw order).
 - **Max-HP fanfare** — `_sfxMaxhpFanfare()`: 5-note triangle-wave ascending run (C major pentatonic, 90ms spacing) → sustained C major chord bloom (sine, reverb tail) → high sine sparkle sweep 2093→3136 Hz. Replaces generic `pickup` SFX on max-HP collection.
+- **Ghoul boss leap SFX** — `ghoul_boss_leap`: deep bass version of `long_ghoul_leap` (frequencies ~¼); sawtooth 150→440→210 Hz + slow tremolo square 275→525 Hz (14 Hz LFO) + sine sub-bass thud 88→28 Hz. Played at end of `windupTimer` in `GhoulBossEnemy`.
+- **Player death SFX** — `game_over` replaced with 5-layer horror sound: sawtooth vocal 155→235→42 Hz with choking tremor LFO (9→16 Hz); 6 staggered blood-gargle noise bursts through bandpass filters; 3 detuned bee-swarm square oscillators (204/217/231 Hz) with fast AM (183/197/211 Hz); final pitch-spike choke (195→440 Hz cut-off); sub-bass thud (88→28 Hz). Layers 1–4 pass through megaphone chain (bandpass 1800 Hz + hard waveshaper clipper).

@@ -244,6 +244,7 @@ const AudioEngine = (() => {
       case 'ghost_lunge': _sfxGhostLunge(now); break;
       case 'ghoul_leap':       _sfxGhoulLeap(now);      break;
       case 'long_ghoul_leap':  _sfxLongGhoulLeap(now);  break;
+      case 'ghoul_boss_leap':  _sfxGhoulBossLeap(now);  break;
       case 'mummy_awaken':     _sfxMummyAwaken(now);    break;
       case 'mummy_flies':      _sfxMummyFlies(now);     break;
       case 'boss_enter':  _sfxBossEnter(now);  break;
@@ -621,6 +622,52 @@ const AudioEngine = (() => {
     osc3.start(now); osc3.stop(now + 0.30);
   }
 
+  function _sfxGhoulBossLeap(now) {
+    // Deep bass version of long_ghoul_leap — all frequencies ~¼, heavier body
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.linearRampToValueAtTime(440, now + 0.10);
+    osc.frequency.exponentialRampToValueAtTime(210, now + 0.40);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.28, now + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    osc.connect(g); g.connect(reverb); g.connect(master);
+    osc.start(now); osc.stop(now + 0.50);
+
+    // Slow tremolo layer — square wave at low frequencies
+    const osc2 = ctx.createOscillator();
+    const lfo  = ctx.createOscillator();
+    const lfoG = ctx.createGain();
+    const g2   = ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(275, now + 0.02);
+    osc2.frequency.linearRampToValueAtTime(525, now + 0.14);
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(14, now);
+    lfoG.gain.setValueAtTime(0.09, now);
+    lfo.connect(lfoG); lfoG.connect(g2.gain);
+    g2.gain.setValueAtTime(0.001, now + 0.02);
+    g2.gain.linearRampToValueAtTime(0.18, now + 0.10);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    osc2.connect(g2); g2.connect(reverb);
+    lfo.start(now); lfo.stop(now + 0.45);
+    osc2.start(now + 0.02); osc2.stop(now + 0.45);
+
+    // Sub-bass thud — sine body impact
+    const osc3 = ctx.createOscillator();
+    const g3   = ctx.createGain();
+    osc3.type = 'sine';
+    osc3.frequency.setValueAtTime(80, now);
+    osc3.frequency.exponentialRampToValueAtTime(35, now + 0.25);
+    g3.gain.setValueAtTime(0.001, now);
+    g3.gain.linearRampToValueAtTime(0.35, now + 0.02);
+    g3.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    osc3.connect(g3); g3.connect(master);
+    osc3.start(now); osc3.stop(now + 0.30);
+  }
+
   function _sfxMummyAwaken(now) {
     // Deep, tomb-resonant groan as the mummy fully rises — low sawtooth rumble + pitched shriek
     const osc = ctx.createOscillator();
@@ -703,20 +750,130 @@ const AudioEngine = (() => {
 
   // Slow descending minor chord
   function _sfxGameOver(now) {
-    const minor = [220, 261, 311];
-    minor.forEach((freq, i) => {
-      const t    = now + i * 0.15;
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type            = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.15, t);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
-      osc.connect(gain);
-      gain.connect(reverb);
-      osc.start(t);
-      osc.stop(t + 2.6);
+    // Synth strangulation: vocal-like sawtooth choked off, blood-gargle noise bursts,
+    // megaphone bandpass + hard clipper, detuned bee-swarm AM buzz, sub-bass death thud.
+
+    // ── Megaphone chain: bandpass ~1800 Hz + hard waveshaper clip ──────────
+    const megaBP = ctx.createBiquadFilter();
+    megaBP.type = 'bandpass';
+    megaBP.frequency.value = 1800;
+    megaBP.Q.value = 2.2;
+    const clipper = ctx.createWaveShaper();
+    const cc = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      cc[i] = (Math.PI + 120) * x / (Math.PI + 120 * Math.abs(x));
+    }
+    clipper.curve = cc;
+    megaBP.connect(clipper);
+    clipper.connect(master);
+    clipper.connect(reverb);
+
+    // ── Layer 1: The strangle — sawtooth vocal, pitch rises then collapses ──
+    const vocal  = ctx.createOscillator();
+    const vGain  = ctx.createGain();
+    const vLFO   = ctx.createOscillator();
+    const vLFOG  = ctx.createGain();
+    vocal.type = 'sawtooth';
+    vocal.frequency.setValueAtTime(155, now);
+    vocal.frequency.linearRampToValueAtTime(235, now + 0.28);   // constriction jacks pitch up
+    vocal.frequency.linearRampToValueAtTime(185, now + 0.65);
+    vocal.frequency.exponentialRampToValueAtTime(90,  now + 1.4);
+    vocal.frequency.exponentialRampToValueAtTime(42,  now + 2.0);
+    // Choking tremor — speeds up as they go
+    vLFO.type = 'sine';
+    vLFO.frequency.setValueAtTime(9,  now);
+    vLFO.frequency.linearRampToValueAtTime(16, now + 1.0);
+    vLFOG.gain.setValueAtTime(20, now);
+    vLFOG.gain.linearRampToValueAtTime(32, now + 0.9);
+    vLFO.connect(vLFOG); vLFOG.connect(vocal.frequency);
+    // Sputtering gain envelope
+    vGain.gain.setValueAtTime(0.001, now);
+    vGain.gain.linearRampToValueAtTime(0.42, now + 0.07);
+    vGain.gain.linearRampToValueAtTime(0.22, now + 0.28);  // first choke
+    vGain.gain.linearRampToValueAtTime(0.40, now + 0.42);  // gasp
+    vGain.gain.linearRampToValueAtTime(0.16, now + 0.68);  // weakening
+    vGain.gain.linearRampToValueAtTime(0.32, now + 0.88);  // last effort
+    vGain.gain.exponentialRampToValueAtTime(0.001, now + 1.85);
+    vocal.connect(vGain);
+    vGain.connect(megaBP);
+    vGain.connect(reverb);
+    vLFO.start(now); vLFO.stop(now + 2.1);
+    vocal.start(now); vocal.stop(now + 2.1);
+
+    // ── Layer 2: Blood gargle — noise bursts through wobbling bandpass ───────
+    const gurgleDef = [
+      { t: 0.06, dur: 0.18, freq: 640, q: 0.9 },
+      { t: 0.33, dur: 0.22, freq: 410, q: 1.1 },
+      { t: 0.56, dur: 0.15, freq: 720, q: 0.8 },
+      { t: 0.80, dur: 0.24, freq: 370, q: 1.3 },
+      { t: 1.08, dur: 0.20, freq: 490, q: 1.0 },
+      { t: 1.32, dur: 0.30, freq: 290, q: 1.5 },  // final deep rattle
+    ];
+    gurgleDef.forEach(({ t, dur, freq, q }) => {
+      const { src, gain: ng } = _noise(dur + 0.08, 1.0);
+      const gBP = ctx.createBiquadFilter();
+      gBP.type = 'bandpass';
+      gBP.frequency.value = freq;
+      gBP.Q.value = q;
+      ng.gain.setValueAtTime(0.001, now + t);
+      ng.gain.linearRampToValueAtTime(0.30, now + t + 0.03);
+      ng.gain.exponentialRampToValueAtTime(0.001, now + t + dur);
+      src.connect(gBP);
+      gBP.connect(megaBP);
+      src.start(now + t); src.stop(now + t + dur + 0.08);
     });
+
+    // ── Layer 3: Bees — 3 detuned square waves with fast AM ──────────────────
+    [
+      { freq: 204, amFreq: 183 },
+      { freq: 217, amFreq: 197 },
+      { freq: 231, amFreq: 211 },
+    ].forEach(({ freq, amFreq }) => {
+      const bee  = ctx.createOscillator();
+      const beeG = ctx.createGain();
+      const am   = ctx.createOscillator();
+      const amG  = ctx.createGain();
+      bee.type = 'square';
+      bee.frequency.value = freq;
+      am.type = 'sine';
+      am.frequency.value = amFreq;
+      amG.gain.value = 0.055;
+      am.connect(amG); amG.connect(beeG.gain);
+      beeG.gain.setValueAtTime(0.055, now);
+      beeG.gain.linearRampToValueAtTime(0.095, now + 0.12);
+      beeG.gain.exponentialRampToValueAtTime(0.001, now + 1.65);
+      bee.connect(beeG);
+      beeG.connect(megaBP);
+      am.start(now); am.stop(now + 1.7);
+      bee.start(now); bee.stop(now + 1.7);
+    });
+
+    // ── Layer 4: The final choke — pitch spikes then cuts ────────────────────
+    const choke  = ctx.createOscillator();
+    const chokeG = ctx.createGain();
+    choke.type = 'sawtooth';
+    choke.frequency.setValueAtTime(195, now + 1.52);
+    choke.frequency.linearRampToValueAtTime(440, now + 1.68);
+    chokeG.gain.setValueAtTime(0.001, now + 1.52);
+    chokeG.gain.linearRampToValueAtTime(0.25, now + 1.54);
+    chokeG.gain.exponentialRampToValueAtTime(0.001, now + 1.75);
+    choke.connect(chokeG);
+    chokeG.connect(megaBP);
+    choke.start(now + 1.52); choke.stop(now + 1.78);
+
+    // ── Layer 5: Sub-bass death thud ─────────────────────────────────────────
+    const thud  = ctx.createOscillator();
+    const thudG = ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(88, now + 0.04);
+    thud.frequency.exponentialRampToValueAtTime(28, now + 0.55);
+    thudG.gain.setValueAtTime(0.001, now + 0.04);
+    thudG.gain.linearRampToValueAtTime(0.32, now + 0.06);
+    thudG.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
+    thud.connect(thudG);
+    thudG.connect(master);
+    thud.start(now + 0.04); thud.stop(now + 0.62);
   }
 
   // Triumphant rising run + chord bloom — max-HP pickup fanfare

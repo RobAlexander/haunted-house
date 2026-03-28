@@ -1275,7 +1275,7 @@ class GhoulBossEnemy {
       this.windupTimer--;
       if (this.windupTimer <= 0) {
         this.leaping = true; this.leapDuration = 22;
-        AudioEngine.playSFX('long_ghoul_leap');
+        AudioEngine.playSFX('ghoul_boss_leap');
       }
     } else {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
