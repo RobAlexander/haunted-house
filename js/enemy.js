@@ -751,7 +751,7 @@ class BossEnemy {
         const useWhite = (G.floor || 1) >= 5 && Math.random() < 0.50;
         const EClass = useWhite ? WhiteSkullEnemy : SkullEnemy;
         const pos = _bossMinionPos(this.pos.x, this.pos.y, C.SKULL_RADIUS);
-        if (pos) G.enemies.push(new EClass(pos.x, pos.y));
+        if (pos) { const m = new EClass(pos.x, pos.y); m.bossMinion = true; G.enemies.push(m); }
       }
     }
   }
@@ -777,6 +777,7 @@ class BossEnemy {
       this.alive = false;
       AudioEngine.playSFX('death');
       _spawnDeathFX(this);
+      _clearBossMinions();
       // Unlock boss room doors
       const room = G.currentRoom;
       for (const dir of ['north', 'south', 'east', 'west']) {
@@ -1103,11 +1104,11 @@ class MummyBossEnemy {
         this.minionTimer = interval;
         // Always spawn a ghoul
         const gp = _bossMinionPos(this.pos.x, this.pos.y, C.GHOUL_RADIUS);
-        if (gp) G.enemies.push(new GhoulEnemy(gp.x, gp.y));
+        if (gp) { const m = new GhoulEnemy(gp.x, gp.y); m.bossMinion = true; G.enemies.push(m); }
         // Phase 3: 40% chance to also raise a small mummy
         if (this.phase === 3 && Math.random() < 0.40) {
           const mp = _bossMinionPos(this.pos.x, this.pos.y, C.MUMMY_RADIUS);
-          if (mp) G.enemies.push(new MummyEnemy(mp.x, mp.y));
+          if (mp) { const m = new MummyEnemy(mp.x, mp.y); m.bossMinion = true; G.enemies.push(m); }
         }
       }
     }
@@ -1128,6 +1129,7 @@ class MummyBossEnemy {
       this.hp = 0; this.alive = false;
       AudioEngine.playSFX('death');
       _spawnDeathFX(this);
+      _clearBossMinions();
       const room = G.currentRoom;
       for (const dir of ['north', 'south', 'east', 'west']) {
         if (room.connections[dir]) room.bossDoorsLocked = false;
@@ -1135,6 +1137,16 @@ class MummyBossEnemy {
       room.bossDoorsLocked = false;
     }
   }
+}
+
+// ── Boss cleanup ──────────────────────────────────────────────────────────
+
+// Kill all boss-summoned minions and clear every fly when a boss dies.
+function _clearBossMinions() {
+  for (const e of G.enemies) {
+    if (e.bossMinion) e.alive = false;
+  }
+  G.flies.length = 0;
 }
 
 // ── Spawn helpers ─────────────────────────────────────────────────────────
