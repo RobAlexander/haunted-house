@@ -9,8 +9,10 @@ class Player {
     this.invincibleFrames = 0;
     this.alive     = true;
     this.wideShots = 0;
-    this.powerups    = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|null)
+    this.powerups    = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|'speed'|'invuln'|null)
     this.powerupIdx  = 0;                 // currently selected slot
+    this.speedTimer  = 0;   // frames of speed-boost remaining
+    this.invulnTimer = 0;   // frames of powerup invincibility remaining
 
     // Sprite deformation — rerolled each game
     // Body: 8-point spline, mild radial variation on a 7.5×11 ellipse
@@ -56,6 +58,10 @@ class Player {
       this.hp = Math.min(this.hp + C.PICKUP_HEAL_AMOUNT, this.maxHp);
     } else if (type === 'power') {
       this.wideShots = C.WIDE_BULLET_SHOTS;
+    } else if (type === 'speed') {
+      this.speedTimer = C.SPEED_POWERUP_DURATION;
+    } else if (type === 'invuln') {
+      this.invulnTimer = C.INVULN_POWERUP_DURATION;
     }
     this.powerups[this.powerupIdx] = null;
     AudioEngine.playSFX('pickup');
@@ -67,6 +73,9 @@ class Player {
     // Aim toward mouse
     this.angle = Math.atan2(my - this.pos.y, mx - this.pos.x);
 
+    if (this.speedTimer  > 0) this.speedTimer--;
+    if (this.invulnTimer > 0) this.invulnTimer--;
+
     // Build movement vector from WASD
     let vx = 0, vy = 0;
     if (keys['w'] || keys['arrowup'])    vy -= 1;
@@ -75,10 +84,12 @@ class Player {
     if (keys['d'] || keys['arrowright']) vx += 1;
     const n = normalizeVec(vx, vy);
 
+    const spd = C.PLAYER_SPEED * (this.speedTimer > 0 ? C.SPEED_POWERUP_MULT : 1);
+
     // Move on each axis separately so the player slides along walls
-    this.pos.x += n.x * C.PLAYER_SPEED;
+    this.pos.x += n.x * spd;
     this._resolveCollisions(room);
-    this.pos.y += n.y * C.PLAYER_SPEED;
+    this.pos.y += n.y * spd;
     this._resolveCollisions(room);
 
     if (this.fireCooldown     > 0) this.fireCooldown--;
@@ -112,8 +123,8 @@ class Player {
   }
 
   takeDamage(amount) {
-    if (this.invincibleFrames > 0) return;
-    const scaled = amount * (1 + ((G.floor || 1) - 1) * C.FLOOR_DAMAGE_BONUS);
+    if (this.invincibleFrames > 0 || this.invulnTimer > 0) return;
+    const scaled = amount * C.MASTER_DAMAGE_MULT * (1 + ((G.floor || 1) - 1) * C.FLOOR_DAMAGE_BONUS);
     this.hp -= scaled;
     this.invincibleFrames = C.PLAYER_INVINCIBLE_FRAMES;
     AudioEngine.playSFX('hit');

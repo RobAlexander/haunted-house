@@ -31,6 +31,7 @@ const G = {
   pendingEndState: null,   // WIN or GAME_OVER waiting after name entry
   devConsole:      { open: false, input: '', output: '' },
   devFullMap:     false,
+  symbolFlicker:  { timer: 0, col: '' },
 };
 
 // ── Game lifecycle ────────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ function startGame() {
   G.newHighScore     = null;
   G.nameInput        = '';
   G.pendingEndState  = null;
+  G.symbolFlicker   = { timer: 0, col: '' };
   G.dungeon        = new DungeonGraph();
   G.bullets        = new BulletPool();
   G.player         = new Player(C.WIDTH / 2, C.HEIGHT / 2);
@@ -65,14 +67,18 @@ function nextFloor() {
   const savedPowerups   = G.player ? [...G.player.powerups] : null;
   const savedPowerupIdx = G.player ? G.player.powerupIdx   : 0;
   const savedWideShots  = G.player ? G.player.wideShots    : 0;
+  const savedSpeedTimer = G.player ? G.player.speedTimer   : 0;
+  const savedInvulnTimer= G.player ? G.player.invulnTimer  : 0;
   G.floor++;
   startGame();
   if (savedHp !== null) {
     G.player.hp         = savedHp;
     G.player.maxHp      = savedMaxHp;
-    G.player.powerups   = savedPowerups;
-    G.player.powerupIdx = savedPowerupIdx;
-    G.player.wideShots  = savedWideShots;
+    G.player.powerups    = savedPowerups;
+    G.player.powerupIdx  = savedPowerupIdx;
+    G.player.wideShots   = savedWideShots;
+    G.player.speedTimer  = savedSpeedTimer;
+    G.player.invulnTimer = savedInvulnTimer;
   }
   G.score = savedScore;
 }
@@ -123,9 +129,20 @@ function enterRoom(room, fromDir) {
     room.maxhpPowerupActive = true;
   }
 
+  // Speed powerup room
+  if (room.speedPowerup && !room.speedPowerupTaken) {
+    room.speedPowerupActive = true;
+  }
+
+  // Invuln powerup room
+  if (room.invulnPowerup && !room.invulnPowerupTaken) {
+    room.invulnPowerupActive = true;
+  }
+
   // Audio: boss mode toggle + room enter SFX
   if (fromDir !== null) AudioEngine.playSFX('room_enter');
   const isMummyBoss = room.type === 'boss' && G.enemies.some(e => e.type === 'mummy_boss');
+  // Ghoul boss uses the same music as skull boss (not mummy mode)
   AudioEngine.setBossMode(room.type === 'boss', isMummyBoss);
   if (room.type === 'boss' && firstVisit) AudioEngine.playSFX('boss_enter');
 }
@@ -278,14 +295,46 @@ function checkRagSymbols() {
                     s.x, s.y, C.RAG_SYMBOL_COLLECT_R)) {
     s.collected = true;
     G.ragCollected[s.letter] = true;
+    AudioEngine.playSFX('symbol_pickup');
+    G.symbolFlicker.timer = C.SYMBOL_FLICKER_DURATION;
+    G.symbolFlicker.col   = C.COL_RAG_SYMBOL;
+  }
+}
+
+function checkSpeedPowerup() {
+  const room = G.currentRoom;
+  if (!room || !room.speedPowerupActive || room.speedPowerupTaken) return;
+  const p = room.speedPowerup;
+  if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, p.x, p.y, 14)) {
+    if (!G.player.addPowerup('speed')) return;
+    room.speedPowerupTaken  = true;
+    room.speedPowerupActive = false;
+    AudioEngine.playSFX('pickup');
+  }
+}
+
+function checkInvulnPowerup() {
+  const room = G.currentRoom;
+  if (!room || !room.invulnPowerupActive || room.invulnPowerupTaken) return;
+  const p = room.invulnPowerup;
+  if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, p.x, p.y, 14)) {
+    if (!G.player.addPowerup('invuln')) return;
+    room.invulnPowerupTaken  = true;
+    room.invulnPowerupActive = false;
     AudioEngine.playSFX('pickup');
   }
 }
 
 function tickParticles() {
+  if (G.symbolFlicker.timer > 0) G.symbolFlicker.timer--;
+
   for (let i = G.deathParticles.length - 1; i >= 0; i--) {
     const p = G.deathParticles[i];
     if (p.delay > 0) { p.delay--; continue; }
+    if (p.isFlyPop) {
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.88; p.vy *= 0.88;
+    }
     p.life--;
     if (p.life <= 0) G.deathParticles.splice(i, 1);
   }
@@ -307,7 +356,7 @@ function tickParticles() {
 function checkInvulnerableRepulsion() {
   for (const e of G.enemies) {
     if (!e.alive) continue;
-    const isInvuln = (e.type === 'boss' && e.transitionTimer > 0) || e.shielded;
+    const isInvuln = ((e.type === 'boss' || e.type === 'ghoul_boss' || e.type === 'mummy_boss') && e.transitionTimer > 0) || e.shielded;
     if (!isInvuln) continue;
     const shieldR = (e.type === 'boss' && e.transitionTimer > 0) ? e.radius + 18 : e.radius + 12;
     for (const other of G.enemies) {

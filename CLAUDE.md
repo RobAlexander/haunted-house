@@ -33,6 +33,7 @@ Open `index.html` directly in any modern browser to play.
 | 8 | ✅ Done | High score table (localStorage), name entry on death |
 | 9 | ✅ Done | Long Ghoul + Mummy enemies, Mummy Boss, fly swarm, powerup inventory system, max-HP powerup |
 | 10 | ✅ Done | Nuckelavee enemy (aura damage + toxic breath particles), boss death clears minions/flies, max-HP fanfare SFX, drop rate tuning |
+| 11 | ✅ Done | Ghoul boss (3rd boss cycle), speed+invuln powerups, treasure map icons, nuckelavee poison trail, symbol pickup SFX+screen flicker, mummy death clears flies, fly death pop, +20% base damage, 4-symbol HUD fix |
 
 ## File Map
 
@@ -72,7 +73,7 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | ghost | Ghosts (depth-scaled) | Depth 1–2 |
 | skull | Skulls + Ghouls | Depth 3–4 |
 | mixed | Ghosts + Skulls + Ghouls | Depth 5+ |
-| boss | Boss (1) | Deepest room; door physically locked until all floor symbols collected; stairwell opens on boss death. Skull boss on odd floors; Mummy boss on even floors. |
+| boss | Boss (1) | Deepest room; door physically locked until all floor symbols collected; stairwell opens on boss death. Boss cycle: Skull (floor 1,4,7…), Ghoul boss (2,5,8…), Mummy boss (3,6,9…). |
 | treasure | none | Dead-end at depth ≥2; +40 HP heal powerup (goes to inventory) |
 
 ## Enemy Types
@@ -88,8 +89,9 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | Mummy | 225 | Rises from tomb over 3s (invulnerable); then pursues slowly; periodically releases fly swarms; never on floor 1 | 25/contact | 80 |
 | Mummy Fly | 5 | Pursues player; individual droning sound; 7s lifetime; small—easier to avoid than shoot | 8/contact | 3 |
 | Boss (Skull) | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change; phase 3 occasionally fires 18-bullet spiral (35% chance); floor 3+/phase 2+ spawns skull minions every 300f (phase 2) or 210f (phase 3); floor 5+ minions may be white skulls (50%); odd floors | 20/bullet | 200 |
-| Boss (Mummy) | 400 | Like skull boss (3 phases) but releases fly swarms each phase; phase 2+ spawns ghoul every 400f (phase 2) or 280f (phase 3); phase 3 also 40% chance to raise a small mummy alongside ghoul; even floors | 20/bullet | 200 |
-| Nuckelavee | 180 | Slow relentless pursuer (skinless horse-rider silhouette); emits toxic aura 65px radius — 1 HP per tick, gated by player invincibility frames; heavy body contact; one per skull/mixed room (25%, floor 2+); Orcadian folklore | 30/contact + 1/aura | 90 |
+| Boss (Mummy) | 400 | Like skull boss (3 phases) but releases fly swarms each phase; phase 2+ spawns ghoul every 400f (phase 2) or 280f (phase 3); phase 3 also 40% chance to raise a small mummy alongside ghoul; floors 3,6,9… | 20/bullet | 200 |
+| Boss (Ghoul) | 350 | 3-phase leap boss; crawls toward player then leaps aggressively; phase 1: leap every 50–80f; phase 2: every 35–55f + ghoul minions; phase 3: every 20–35f + long ghoul minions; 2s invuln on phase change; floors 2,5,8… | 60/contact | 200 |
+| Nuckelavee | 180 | Slow relentless pursuer (skinless horse-rider silhouette); emits toxic aura 65px radius — 1 HP per tick, gated by player invincibility frames; leaves a persistent green gas trail that also damages; heavy body contact; one per skull/mixed room (25%, floor 2+); Orcadian folklore | 30/contact + 1/aura + 1/trail | 90 |
 
 All enemy movement speeds and boss fire rate / bullet count scale with floor number (see `FLOOR_*` constants).
 Incoming player damage scales up 10% per floor with no cap (`FLOOR_DAMAGE_BONUS`).
@@ -111,6 +113,8 @@ Open with `` ` ``. Tab-completes commands.
 | `spawn_long_ghoul` | Spawn a long ghoul near player |
 | `spawn_mummy` | Spawn a mummy near player |
 | `spawn_nuckelavee` | Spawn a nuckelavee near player |
+| `spawn_white_skull` | Spawn a white skull near player |
+| `spawn_ghoul_boss` | Spawn a ghoul boss near player |
 | `spawn_maxhp` | Spawn a max-HP powerup 40px right of the player |
 | `help` | List all commands |
 
@@ -144,13 +148,19 @@ Open with `` ` ``. Tab-completes commands.
 - **High scores** — `HighScores` (scores.js) persists top-5 `{score, floor, name}` entries in localStorage. On death, `_beginEndSequence()` checks `qualifies()` and routes through `STATES.NAME_ENTRY` if so.
 - All SFX volumes exposed as `SFX_VOL_*` constants for easy tuning.
 - **Floor symbol system** — each floor has a set of 2–4 rune symbols to collect before the boss door opens. Floors 1–4 use fixed named sets (`RAG`, `OTR`, `NV`, `NTEM`); floor 5+ uses `getFloorSymbols(floor)` with a Mulberry32 seeded RNG (always deterministic for a given floor). Symbols are stick-figure glyphs defined in `SYMBOL_GLYPHS` (utils.js), placed in random non-start/non-boss/non-treasure rooms. Spawn uses up to 60 attempts with `circleRectCollide` to avoid placing symbols inside obstacles. `G.ragCollected` is keyed by the current floor's letters; `ragAllCollected()` checks all values. Visual: pulsing stick glyph with ghost-scatter copies; locked boss door shows letter progress (`·` for uncollected); HUD top-right shows per-letter status; map shows a tiny glyph in the room corner.
-- **Powerup inventory** — player has 3 inventory slots (`player.powerups[3]`). Big room pickups (heal +40HP, power shots) go to inventory via `addPowerup(type)` instead of triggering immediately. Space activates the selected slot; Q cycles (`cyclePowerup()`). HUD shows all 3 boxes right of the HP bar. Max-HP powerup is instant (walk-over): +20% maxHp + heals 20% of new maxHp; never goes to inventory. Powerups preserved across floors via `nextFloor()`.
+- **Powerup inventory** — player has 3 inventory slots (`player.powerups[3]`). Big room pickups (heal +40HP, power shots, speed, invuln) go to inventory via `addPowerup(type)` instead of triggering immediately. Space activates the selected slot; Q cycles (`cyclePowerup()`). HUD shows all 3 boxes right of the HP bar; active timer (seconds) shown below for speed/invuln. Max-HP powerup is instant (walk-over): +20% maxHp + heals 20% of new maxHp; never goes to inventory. Powerups (including active timers) preserved across floors via `nextFloor()`.
+- **Speed powerup** — `'speed'` type: 1.8× movement speed for 8 s (480f). Cyan chevron sprite. Active timer displayed in HUD. Speed afterimage trail on player.
+- **Invuln powerup** — `'invuln'` type: full invincibility for 5 s (300f); checked in `player.takeDamage()` alongside `invincibleFrames`. Silver hexagon sprite. Rotating hexagonal shield ring rendered around player while active.
+- **Master damage multiplier** — `MASTER_DAMAGE_MULT: 1.2` applied in `player.takeDamage()` before floor scaling; provides the single constant to globally tune all incoming player damage.
 - **Mummy enemy** — `room.hasMummy` flag set in DungeonGraph; spawned by `spawnEnemies()` in addition to the room's normal enemies. Rises over `MUMMY_RISE_FRAMES` (180f) — invulnerable, drawing shifts down and fades in; ground cracks shown. After rising, pursues slowly and periodically releases fly swarms (`_releaseFlies()`). Floor 2+ only; probability `min(50%, 10%+(floor-2)×10%)`; at most 1 per floor.
 - **MummyFly** — lives in `G.flies[]` (separate from `G.enemies[]`) so flies don't block room-cleared detection. Per-fly `droneFreq` (90–170Hz); calls `AudioEngine.playFlyBuzz(freq)` every 80–160f. 420f (7s) lifetime, then disappears. Can be shot but very small (score 3 each).
 - **LongGhoul** — `_longGhoulChance()` = `min(80%, max(5%, (floor-1)×20%))`; substituted for regular Ghoul spawns. 5 legs (index 4 always 22–29px), scrunched body, grey-white color, 2× HP (100), leap cooldown 20–55f (vs 60–140f), plays `long_ghoul_leap` SFX.
 - **WhiteSkull** — `_whiteSkullChance()` = 0 below floor 3, then `min(60%, 20%+(floor-3)×20%)`; at most 1 per room. Fires weaving bullets (`BulletPool.fireWeaving()`) with sinusoidal arc; also fires 8-bullet scatter burst (reuses boss_fire SFX). Scatter probability: 75% when player dist < `WHITE_SKULL_NEAR_RANGE` (100px), else 20%. Near-white/blue-tinted colour with glow ring.
 - **Weaving bullets** — `Bullet.weave = { baseAngle, speed, freq, maxDev, age }`. Each frame in `BulletPool.update()`, if `b.weave` set: `dev = sin(age * freq) * maxDev`, velocity recomputed as `(cos(baseAngle+dev), sin(baseAngle+dev)) * speed`. Cleared on deactivate/refire.
-- **Boss spiral attack** — phase 3 only; 35% chance to trigger instead of regular burst when `fireTimer` expires. Fires `BOSS_SPIRAL_BULLETS` (18) bullets one per `BOSS_SPIRAL_INTERVAL` (3) frames, rotating angle by `BOSS_SPIRAL_ROT` (0.75 rad) each bullet (~2.1 full rotations). `spiralActive` flag prevents overlapping spirals. Visual: 4 rotating arm lines at `e.spiralAngle`. Per-arm angle jitter `±0.38 rad`, per-bullet speed variation `0.82–1.20×`, per-step rotation variation `0.65–1.40×` give organic jagged arms.
-- **Boss minion cleanup** — `_clearBossMinions()` called on boss death: sets `alive = false` on every enemy with `bossMinion = true` (tagged at spawn), and clears `G.flies` entirely. Applies to both skull boss and mummy boss.
-- **Nuckelavee** — `_nuckelaveeChance()` = 25% from floor 2; one per skull/mixed room. Emits a toxic breath cloud: per-instance `breathParticles[]` (max ~20 live), each spawned every 2 frames within the 65px aura radius, drifting with slow random walk, rendered as `COL_FLY` (#44ff66) circles with fade-in/out alpha. Aura also deals 1 HP per 6-frame tick (gated by player invincibility frames).
+- **Boss spiral attack** — phase 3 only; 35% chance to trigger instead of regular burst when `fireTimer` expires. Fires `BOSS_SPIRAL_BULLETS` (18) bullets one per `BOSS_SPIRAL_INTERVAL` (3) frames, rotating angle by `BOSS_SPIRAL_ROT` (0.75 rad) each bullet (~2.1 full rotations). `spiralActive` flag prevents overlapping spirals. Visual: 3 rotating arm lines at `e.spiralAngle`. Per-arm angle jitter `±0.38 rad`, per-bullet speed variation `0.82–1.20×`, per-step rotation variation `0.65–1.40×` give organic jagged arms.
+- **Boss minion cleanup** — `_clearBossMinions()` called on boss death: sets `alive = false` on every enemy with `bossMinion = true` (tagged at spawn), and clears `G.flies` entirely. Applies to all boss types. **Regular mummy death** also clears `G.flies` (since only one mummy per floor).
+- **Symbol pickup feedback** — `checkRagSymbols()` fires `'symbol_pickup'` SFX (discordant tritone+minor-second jangle) and sets `G.symbolFlicker { timer, col }`. Renderer overlays a pulsing tinted flash (3 pulses, ~0.22 max alpha) in `COL_RAG_SYMBOL` for `SYMBOL_FLICKER_DURATION` (40) frames.
+- **Fly death pop** — `MummyFly.takeDamage()` spawns 5 `COL_FLY` scatter particles (`isFlyPop: true`) that move outward, decelerate, and fade. Ticked and moved in `tickParticles()`; rendered as filled dots in `drawDeathParticles()`.
+- **Ghoul Boss** — `GhoulBossEnemy` class; floor cycle via `spawnBoss()`: `floor%3===1` → skull, `floor%3===2` → ghoul boss, `floor%3===0` → mummy boss. No bullets; pure contact/leap combat. Phase transition: 2s invuln + yellow glow ring (same as other bosses, handled in bullet.js `shieldR` check and `checkInvulnerableRepulsion()`). Uses skull-boss music mode. `spawn_ghoul_boss` dev command.
+- **Nuckelavee** — `_nuckelaveeChance()` = 25% from floor 2; one per skull/mixed room. Emits a toxic breath cloud: per-instance `breathParticles[]` (max ~20 live), each spawned every 2 frames within the 65px aura radius, drifting with slow random walk, rendered as `COL_FLY` (#44ff66) circles with fade-in/out alpha. Aura also deals 1 HP per 6-frame tick (gated by player invincibility frames). **Poison trail**: `trailParticles[]` spawned every 6 frames at current position, live for 200f (~3.3s), drift slowly upward; contact with a trail wisp deals 1 HP per 8-frame tick. Trail rendered behind enemies (before `drawEnemies` in draw order).
 - **Max-HP fanfare** — `_sfxMaxhpFanfare()`: 5-note triangle-wave ascending run (C major pentatonic, 90ms spacing) → sustained C major chord bloom (sine, reverb tail) → high sine sparkle sweep 2093→3136 Hz. Replaces generic `pickup` SFX on max-HP collection.

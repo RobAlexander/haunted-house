@@ -20,9 +20,12 @@ const Renderer = {
     }
 
     this.drawRoom(G.currentRoom);
+    this.drawNuckelaveeTrail(G.enemies);
     this.drawPickup(G.currentRoom);
     this.drawWidePowerup(G.currentRoom);
     this.drawMaxHpPowerup(G.currentRoom);
+    this.drawSpeedPowerup(G.currentRoom);
+    this.drawInvulnPowerup(G.currentRoom);
     this.drawRagSymbol(G.currentRoom);
     this.drawDrops(G.drops);
     this.drawFlies(G.flies);
@@ -34,6 +37,7 @@ const Renderer = {
     this.drawCrosshair(mx, my);
     this.drawHUD();
     this.drawVignette(G.player);
+    this.drawSymbolFlicker();
 
     if (G.mapOpen)                         { this.drawMap(); }
     if (G.state === STATES.NAME_ENTRY)     this.drawNameEntry();
@@ -335,6 +339,74 @@ const Renderer = {
     text('MAX HP', p.x, p.y + 26);
   },
 
+  drawSpeedPowerup(room) {
+    if (!room || !room.speedPowerupActive || room.speedPowerupTaken) return;
+    const p     = room.speedPowerup;
+    const pulse = 0.65 + 0.35 * Math.sin(G.frame * 0.15);
+    drawingContext.globalAlpha = pulse;
+    noFill(); stroke(C.COL_SPEED_PICKUP); strokeWeight(2);
+    // Chevron arrow shape — suggests speed
+    const hw = 14, hh = 7;
+    line(p.x - hw, p.y - hh, p.x, p.y);
+    line(p.x, p.y, p.x - hw, p.y + hh);
+    line(p.x - hw + 9, p.y - hh, p.x + 9, p.y);
+    line(p.x + 9, p.y, p.x - hw + 9, p.y + hh);
+    drawingContext.globalAlpha = 1;
+    noStroke(); fill(C.COL_SPEED_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
+    text('SPEED', p.x, p.y + 22);
+  },
+
+  drawInvulnPowerup(room) {
+    if (!room || !room.invulnPowerupActive || room.invulnPowerupTaken) return;
+    const p     = room.invulnPowerup;
+    const pulse = 0.65 + 0.35 * Math.sin(G.frame * 0.08);
+    drawingContext.globalAlpha = pulse;
+    noFill(); stroke(C.COL_INVULN_PICKUP); strokeWeight(2);
+    // Shield shape — hexagonal outline
+    for (let i = 0; i < 6; i++) {
+      const a1 = (Math.PI / 3) * i - Math.PI / 2;
+      const a2 = (Math.PI / 3) * (i + 1) - Math.PI / 2;
+      line(p.x + Math.cos(a1) * 14, p.y + Math.sin(a1) * 14,
+           p.x + Math.cos(a2) * 14, p.y + Math.sin(a2) * 14);
+    }
+    strokeWeight(1);
+    circle(p.x, p.y, 16);
+    drawingContext.globalAlpha = 1;
+    noStroke(); fill(C.COL_INVULN_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
+    text('INVUL', p.x, p.y + 24);
+  },
+
+  drawNuckelaveeTrail(enemies) {
+    if (!enemies) return;
+    noStroke();
+    for (const e of enemies) {
+      if (!e.alive || e.type !== 'nuckelavee' || !e.trailParticles) continue;
+      for (const tp of e.trailParticles) {
+        const frac = tp.life / tp.maxLife;
+        // Fade in first 15%, hold, fade out last 40%
+        const alpha = frac > 0.85 ? (1 - frac) / 0.15 * 0.35
+                    : frac < 0.40 ? (frac  / 0.40) * 0.35
+                    :                0.35;
+        drawingContext.globalAlpha = alpha;
+        fill(C.COL_FLY);
+        circle(tp.x, tp.y, tp.size * 2);
+      }
+    }
+    drawingContext.globalAlpha = 1;
+  },
+
+  drawSymbolFlicker() {
+    const sf = G.symbolFlicker;
+    if (!sf || sf.timer <= 0) return;
+    const t     = sf.timer / C.SYMBOL_FLICKER_DURATION;
+    // Pulse 3 times during the flicker window using a triangle wave
+    const pulse = Math.abs(Math.sin(t * Math.PI * 3));
+    drawingContext.globalAlpha = pulse * 0.22;
+    noStroke(); fill(sf.col);
+    rect(0, 0, C.WIDTH, C.HEIGHT);
+    drawingContext.globalAlpha = 1;
+  },
+
   drawRagSymbol(room) {
     if (!room || !room.ragSymbol || room.ragSymbol.collected) return;
     const s    = room.ragSymbol;
@@ -410,6 +482,7 @@ const Renderer = {
       if (e.type === 'skull')       this._drawSkull(e);
       if (e.type === 'white_skull') this._drawWhiteSkull(e);
       if (e.type === 'boss')        this._drawBoss(e);
+      if (e.type === 'ghoul_boss')  this._drawGhoulBoss(e);
       if (e.type === 'ghoul')       this._drawGhoul(e);
       if (e.type === 'long_ghoul')  this._drawLongGhoul(e);
       if (e.type === 'nuckelavee')  this._drawNuckelavee(e);
@@ -599,6 +672,62 @@ const Renderer = {
     drawingContext.globalAlpha = 1;
 
     this._drawEnemyHP(e, x, y - r - 8);
+  },
+
+  _drawGhoulBoss(e) {
+    const x = e.pos.x, y = e.pos.y, r = e.radius;
+    const p   = e.crawlPhase;
+    const transitioning = e.transitionTimer > 0;
+    const col = transitioning ? '#ffee00' : C.COL_GHOUL_BOSS;
+
+    // Phase glow ring behind body
+    const phaseCol = e.phase === 3 ? '#ff3333' : e.phase === 2 ? '#ff7744' : '#aa4455';
+    const ringAlpha = 0.22 + 0.12 * Math.sin(G.frame * 0.09);
+    drawingContext.globalAlpha = transitioning ? 0.5 : ringAlpha;
+    noFill(); stroke(transitioning ? '#ffee00' : phaseCol); strokeWeight(5);
+    circle(x, y, (r + 14) * 2);
+    drawingContext.globalAlpha = 1;
+
+    // Larger irregular body
+    noFill(); stroke(col); strokeWeight(2);
+    const bp = e.bodyPts, bn = bp.length;
+    beginShape();
+    curveVertex(x + bp[bn-1][0]*r, y + bp[bn-1][1]*r);
+    for (const [ox, oy] of bp) curveVertex(x + ox*r, y + oy*r);
+    curveVertex(x + bp[0][0]*r, y + bp[0][1]*r);
+    curveVertex(x + bp[1][0]*r, y + bp[1][1]*r);
+    endShape(CLOSE);
+
+    // 4 jointed legs — heavier weight, longer
+    strokeWeight(2);
+    const animSigns = [1, -1, 1, -1];
+    for (let i = 0; i < 4; i++) {
+      const leg  = e.legs[i];
+      const anim = animSigns[i] * Math.sin(p) * 0.3;
+      let dir = leg.dir + anim;
+      let cx  = x + Math.cos(dir) * r * 1.05;
+      let cy  = y + Math.sin(dir) * r * 0.7;
+      for (let k = 0; k < leg.segLens.length; k++) {
+        if (k > 0) dir += leg.bends[k - 1];
+        const nx = cx + Math.cos(dir) * leg.segLens[k];
+        const ny = cy + Math.sin(dir) * leg.segLens[k];
+        line(cx, cy, nx, ny);
+        if (k < leg.bends.length) {
+          strokeWeight(4); point(nx, ny); strokeWeight(2);
+        }
+        cx = nx; cy = ny;
+      }
+    }
+
+    // Eyes — larger, glow red, blaze when leaping
+    const eyeAlpha = e.leaping ? 1.0 : 0.8;
+    drawingContext.globalAlpha = eyeAlpha;
+    noStroke(); fill(transitioning ? '#ffee00' : '#ff3355');
+    circle(x - e.eyeOff, y - 3, 8);
+    circle(x + e.eyeOff, y - 3, 8);
+    drawingContext.globalAlpha = 1;
+
+    this._drawBossHP(e, C.COL_GHOUL_BOSS);
   },
 
   _drawLongGhoul(e) {
@@ -1015,6 +1144,32 @@ const Renderer = {
 
     const px = player.pos.x, py = player.pos.y, a = player.angle;
 
+    // Invuln shield — hexagonal pulsing ring
+    if (player.invulnTimer > 0) {
+      const frac  = player.invulnTimer / C.INVULN_POWERUP_DURATION;
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(G.frame * 0.14));
+      drawingContext.globalAlpha = frac * pulse * 0.7;
+      noFill(); stroke(C.COL_INVULN_PICKUP); strokeWeight(2.5);
+      for (let i = 0; i < 6; i++) {
+        const a1 = (Math.PI / 3) * i + G.frame * 0.02;
+        const a2 = (Math.PI / 3) * (i + 1) + G.frame * 0.02;
+        const rad = player.radius + 10;
+        line(px + Math.cos(a1) * rad, py + Math.sin(a1) * rad,
+             px + Math.cos(a2) * rad, py + Math.sin(a2) * rad);
+      }
+      drawingContext.globalAlpha = 1;
+    }
+
+    // Speed trail — faint afterimage streaks
+    if (player.speedTimer > 0) {
+      const frac = player.speedTimer / C.SPEED_POWERUP_DURATION;
+      drawingContext.globalAlpha = frac * 0.25;
+      noFill(); stroke(C.COL_SPEED_PICKUP); strokeWeight(1);
+      circle(px - Math.cos(a) * 10, py - Math.sin(a) * 10, player.radius * 2.4);
+      circle(px - Math.cos(a) * 18, py - Math.sin(a) * 18, player.radius * 1.6);
+      drawingContext.globalAlpha = 1;
+    }
+
     push();
     translate(px, py);
     rotate(a);
@@ -1062,11 +1217,17 @@ const Renderer = {
     for (const p of particles) {
       if (p.delay > 0) continue;
       const t     = 1 - p.life / p.maxLife;
-      const r     = p.radius + (p.maxRadius - p.radius) * t;
       const alpha = (1 - t) * 0.85;
       drawingContext.globalAlpha = alpha;
-      noFill(); stroke(p.col); strokeWeight(1.5);
-      circle(p.x, p.y, r * 2);
+      if (p.isFlyPop) {
+        // Small scatter dot
+        noStroke(); fill(p.col);
+        circle(p.x, p.y, p.radius * 2 * (1 - t * 0.5));
+      } else {
+        const r = p.radius + (p.maxRadius - p.radius) * t;
+        noFill(); stroke(p.col); strokeWeight(1.5);
+        circle(p.x, p.y, r * 2);
+      }
       drawingContext.globalAlpha = 1;
     }
   },
@@ -1170,17 +1331,35 @@ const Renderer = {
         stroke(sel ? '#ccccee' : '#333355'); strokeWeight(sel ? 1.5 : 0.8);
         rect(sx, sy, slotW, slotH, 2);
         if (pup) {
-          const col = pup === 'heal' ? C.COL_PICKUP : C.COL_WIDE_PICKUP;
+          const col   = pup === 'heal'   ? C.COL_PICKUP
+                      : pup === 'power'  ? C.COL_WIDE_PICKUP
+                      : pup === 'speed'  ? C.COL_SPEED_PICKUP
+                      :                   C.COL_INVULN_PICKUP;
+          const label = pup === 'heal'   ? '+HP'
+                      : pup === 'power'  ? 'PWR'
+                      : pup === 'speed'  ? 'SPD'
+                      :                   'INV';
           noStroke(); fill(col); textSize(9); textAlign(CENTER, CENTER);
-          text(pup === 'heal' ? '+HP' : 'POWER', sx + slotW / 2, sy + slotH / 2);
+          text(label, sx + slotW / 2, sy + slotH / 2);
         }
         noStroke(); fill(sel ? '#666677' : '#2a2a44'); textSize(7); textAlign(LEFT, TOP);
         text(i + 1, sx + 2, sy + 1);
       }
       // Active power shots remaining (shown below slots)
+      let activeRow = 0;
       if (p.wideShots > 0) {
         noStroke(); fill(C.COL_WIDE_PICKUP); textSize(8); textAlign(LEFT, TOP);
-        text(`PWR ×${p.wideShots}`, sx0, sy + slotH + 2);
+        text(`PWR ×${p.wideShots}`, sx0, sy + slotH + 2 + activeRow * 10); activeRow++;
+      }
+      if (p.speedTimer > 0) {
+        const secs = Math.ceil(p.speedTimer / C.FPS);
+        noStroke(); fill(C.COL_SPEED_PICKUP); textSize(8); textAlign(LEFT, TOP);
+        text(`SPD ${secs}s`, sx0, sy + slotH + 2 + activeRow * 10); activeRow++;
+      }
+      if (p.invulnTimer > 0) {
+        const secs = Math.ceil(p.invulnTimer / C.FPS);
+        noStroke(); fill(C.COL_INVULN_PICKUP); textSize(8); textAlign(LEFT, TOP);
+        text(`INV ${secs}s`, sx0, sy + slotH + 2 + activeRow * 10);
       }
     }
 
@@ -1199,18 +1378,20 @@ const Renderer = {
       const letters = getFloorSymbols(G.floor);
       const allDone = ragAllCollected();
       textAlign(RIGHT, TOP); textSize(10);
-      // Draw each letter: bright if collected, dim if not
+      const symSpacing = 16;
+      // Draw each letter right-to-left
       let tx = C.WIDTH - 20;
       for (let i = letters.length - 1; i >= 0; i--) {
         const l = letters[i];
         const done = rc && rc[l];
         fill(done ? C.COL_RAG_SYMBOL : '#553366');
         text(l, tx, 52);
-        tx -= 14;
+        tx -= symSpacing;
       }
       if (!allDone) {
         fill(C.COL_GAMEOVER);
-        text('BOSS DOOR LOCKED', C.WIDTH - 64, 52);
+        // Place locked indicator to the left of the symbol block with a gap
+        text('BOSS DOOR LOCKED', C.WIDTH - 20 - letters.length * symSpacing - 6, 52);
       }
     }
 
@@ -1228,11 +1409,23 @@ const Renderer = {
       const hasHeal  = room.pickupActive  && !room.pickupTaken;
       const hasPower = room.widePowerupActive && !room.widePowerupTaken;
       const hasMaxHp = room.maxhpPowerupActive && !room.maxhpPowerupTaken;
-      if (hasHeal || hasPower || hasMaxHp) {
+      const hasSpeed = room.speedPowerupActive && !room.speedPowerupTaken;
+      const hasInvuln= room.invulnPowerupActive && !room.invulnPowerupTaken;
+      if (hasHeal || hasPower || hasMaxHp || hasSpeed || hasInvuln) {
         noStroke(); textSize(11); textAlign(CENTER, BOTTOM);
         if (hasMaxHp) {
           fill(C.COL_MAXHP_PICKUP);
           text('MAX HP UP — walk over to collect instantly', C.WIDTH / 2, C.HEIGHT - 12);
+        } else if (hasSpeed) {
+          fill(C.COL_SPEED_PICKUP);
+          p.powerups.every(s => s !== null)
+            ? text('INVENTORY FULL — press SPC to use a powerup', C.WIDTH / 2, C.HEIGHT - 12)
+            : text('SPEED BOOST — walk into pickup', C.WIDTH / 2, C.HEIGHT - 12);
+        } else if (hasInvuln) {
+          fill(C.COL_INVULN_PICKUP);
+          p.powerups.every(s => s !== null)
+            ? text('INVENTORY FULL — press SPC to use a powerup', C.WIDTH / 2, C.HEIGHT - 12)
+            : text('INVINCIBILITY — walk into pickup', C.WIDTH / 2, C.HEIGHT - 12);
         } else if (p.powerups.every(s => s !== null)) {
           fill('#ff6644');
           text('INVENTORY FULL — press SPC to use a powerup', C.WIDTH / 2, C.HEIGHT - 12);
@@ -1396,9 +1589,20 @@ const Renderer = {
       const rx = ox + room.gx * stepX, ry = oy + room.gy * stepY;
       const isCurrent = room === G.currentRoom;
       const treasureTaken = room.type === 'treasure' && room.pickupTaken;
-      const col = treasureTaken ? C.COL_DOOR_OPEN : (TYPE_COL[room.type] || C.COL_HUD_TEXT);
-      // Cleared rooms (not boss, not current) use a dim neutral outline
-      const borderCol = (room.cleared && room.type !== 'boss' && !isCurrent)
+
+      // Detect uncollected powerups in this room (including non-treasure typed dead-ends)
+      const roomPowerup = !room.pickupTaken && room.type === 'treasure'   ? { col: C.COL_PICKUP,      label: 'HEAL' }
+                        : room.widePowerup  && !room.widePowerupTaken     ? { col: C.COL_WIDE_PICKUP,  label: 'PWR'  }
+                        : room.speedPowerup && !room.speedPowerupTaken    ? { col: C.COL_SPEED_PICKUP, label: 'SPD'  }
+                        : room.invulnPowerup && !room.invulnPowerupTaken  ? { col: C.COL_INVULN_PICKUP,label: 'INV'  }
+                        : room.maxhpPowerup  && !room.maxhpPowerupTaken   ? { col: C.COL_MAXHP_PICKUP, label: 'MXHP' }
+                        : null;
+
+      const col = roomPowerup         ? roomPowerup.col
+                : treasureTaken       ? C.COL_DOOR_OPEN
+                :                       (TYPE_COL[room.type] || C.COL_HUD_TEXT);
+      // Cleared rooms (not boss, not current, no powerup) use a dim neutral outline
+      const borderCol = (room.cleared && room.type !== 'boss' && !isCurrent && !roomPowerup)
         ? '#444466' : col;
 
       // Background fill
@@ -1418,14 +1622,23 @@ const Renderer = {
 
       // Type label (center of cell)
       noStroke();
-      const label = room.type === 'start'              ? 'START'
-                  : room.type === 'boss'               ? 'BOSS'
-                  : room.type === 'treasure' && !treasureTaken ? 'TRSR'
-                  : room.cleared                       ? ''
-                  :                                      '...';
+      const label = room.type === 'start'  ? 'START'
+                  : room.type === 'boss'   ? 'BOSS'
+                  : roomPowerup            ? roomPowerup.label
+                  : room.cleared           ? ''
+                  :                          '...';
       fill(room.cleared || room.type === 'start' ? col : C.COL_DOOR_CLOSED);
       textFont('monospace'); textSize(8); textAlign(CENTER, CENTER);
       text(label, rx + cellW / 2, ry + cellH / 2);
+
+      // Pulsing border highlight for uncollected powerup rooms
+      if (roomPowerup && !isCurrent) {
+        const pulse = 0.4 + 0.35 * Math.sin(G.frame * 0.12);
+        drawingContext.globalAlpha = pulse;
+        noFill(); stroke(roomPowerup.col); strokeWeight(2.5);
+        rect(rx, ry, cellW, cellH, 3);
+        drawingContext.globalAlpha = 1;
+      }
 
       // Symbol marker — tiny stick glyph in top-right corner of cell
       if (room.ragSymbol && !room.ragSymbol.collected) {
@@ -1458,10 +1671,12 @@ const Renderer = {
       { col: C.COL_GHOUL,        label: 'ghoul'      },
       { col: C.COL_LONG_GHOUL,  label: 'long ghoul' },
       { col: C.COL_NUCKELAVEE,  label: 'nuckelavee' },
-      { col: C.COL_MUMMY,     label: 'mummy'      },
-      { col: '#ff9922',         label: 'mixed'    },
-      { col: C.COL_BOSS,        label: 'boss'     },
-      { col: C.COL_PICKUP,      label: 'treasure' },
+      { col: C.COL_MUMMY,       label: 'mummy'      },
+      { col: '#ff9922',         label: 'mixed'      },
+      { col: C.COL_BOSS,        label: 'boss (skull)'  },
+      { col: C.COL_GHOUL_BOSS,  label: 'boss (ghoul)'  },
+      { col: C.COL_MUMMY_BOSS,  label: 'boss (mummy)'  },
+      { col: C.COL_PICKUP,      label: 'treasure'   },
     ];
     const lx = 14, ly = C.HEIGHT - 14 - legendItems.length * 13;
     noStroke(); fill(C.COL_HUD_TITLE); textSize(9); textAlign(LEFT, TOP); textFont('monospace');

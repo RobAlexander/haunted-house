@@ -249,8 +249,9 @@ const AudioEngine = (() => {
       case 'boss_enter':  _sfxBossEnter(now);  break;
       case 'boss_phase':  _sfxBossPhase(now);  break;
       case 'game_over':   _sfxGameOver(now);   break;
-      case 'maxhp_fanfare': _sfxMaxhpFanfare(now); break;
-      case 'win':           _sfxWin(now);          break;
+      case 'maxhp_fanfare':   _sfxMaxhpFanfare(now);   break;
+      case 'win':             _sfxWin(now);            break;
+      case 'symbol_pickup':   _sfxSymbolPickup(now);   break;
     }
   }
 
@@ -790,6 +791,50 @@ const AudioEngine = (() => {
     sg.connect(reverb);
     shimmer.start(now + 0.5);
     shimmer.stop(now + 3.6);
+  }
+
+  // Discordant jangle — clashing tritone cluster with a scraping metallic overtone.
+  // A minor second (B+C) beating against a tritone (F#) gives an unsettling, wrong sound.
+  function _sfxSymbolPickup(now) {
+    // Layer 1: tritone stab — triangle wave pair a tritone apart
+    [[246.9, 0], [369.9, 0.01]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + delay);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.85, now + delay + 0.35);
+      g.gain.setValueAtTime(0.22, now + delay);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.45);
+      osc.connect(g); g.connect(reverb); g.connect(master);
+      osc.start(now + delay); osc.stop(now + delay + 0.5);
+    });
+
+    // Layer 2: semitone clash — two square waves a minor second apart; beating effect
+    [[261.6, 0.0], [277.2, 0.0]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.0, now + delay);
+      g.gain.linearRampToValueAtTime(0.08, now + delay + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.55);
+      osc.connect(g); g.connect(reverb);
+      osc.start(now + delay); osc.stop(now + delay + 0.6);
+    });
+
+    // Layer 3: scraping metallic decay — short sawtooth burst with harsh highpass
+    const saw = ctx.createOscillator();
+    const hp  = ctx.createBiquadFilter();
+    const sg  = ctx.createGain();
+    saw.type = 'sawtooth';
+    saw.frequency.setValueAtTime(880, now + 0.02);
+    saw.frequency.exponentialRampToValueAtTime(440, now + 0.30);
+    hp.type = 'highpass'; hp.frequency.value = 1800;
+    sg.gain.setValueAtTime(0.0, now + 0.02);
+    sg.gain.linearRampToValueAtTime(0.10, now + 0.04);
+    sg.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+    saw.connect(hp); hp.connect(sg); sg.connect(master);
+    saw.start(now + 0.02); saw.stop(now + 0.35);
   }
 
   // ── Public API ───────────────────────────────────────────────────────────

@@ -158,7 +158,7 @@ const C = {
   // Mummy Fly — tiny, pursue player, time out
   FLY_HP:               5,
   FLY_RADIUS:           4,
-  FLY_SPEED:            2.2,
+  FLY_SPEED:            2.86,
   FLY_LIFETIME:         420,    // ~7 s
   FLY_CONTACT_DAMAGE:   8,
   SCORE_FLY:            3,
@@ -211,4 +211,30 @@ const C = {
   SCORE_NUCKELAVEE:            90,
   COL_NUCKELAVEE:        '#7a1818',  // dark blood-red for body outline
   COL_NUCKELAVEE_VEIN:   '#cc6622',  // orange-yellow for exposed veins/eye
+
+  // Nuckelavee poison trail (gas cloud left behind as it moves)
+  NUCKELAVEE_TRAIL_LIFETIME:       200,  // frames each trail wisp lives
+  NUCKELAVEE_TRAIL_INTERVAL:         6,  // spawn one wisp every N frames
+  NUCKELAVEE_TRAIL_DAMAGE:           1,
+  NUCKELAVEE_TRAIL_DAMAGE_INTERVAL:  8,  // frames between trail damage ticks
+
+  // Ghoul Boss — third in boss cycle (floors 2, 5, 8…)
+  GHOUL_BOSS_HP:                350,
+  GHOUL_BOSS_RADIUS:             22,
+  GHOUL_BOSS_CONTACT_DAMAGE:     60,
+  SCORE_GHOUL_BOSS:             200,
+  COL_GHOUL_BOSS:          '#8a2050',  // dark crimson-magenta
+
+  // Speed & invuln powerups
+  SPEED_POWERUP_MULT:     1.8,    // movement speed multiplier while active
+  SPEED_POWERUP_DURATION: 480,    // 8 s at 60fps
+  INVULN_POWERUP_DURATION:300,    // 5 s at 60fps
+  COL_SPEED_PICKUP:  '#00eeff',   // cyan
+  COL_INVULN_PICKUP: '#eeeeff',   // near-white silver
+
+  // Master incoming player damage multiplier (applied before floor scaling)
+  MASTER_DAMAGE_MULT: 1.2,
+
+  // Symbol pickup screen flicker duration
+  SYMBOL_FLICKER_DURATION: 40,
 };

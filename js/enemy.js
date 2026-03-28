@@ -358,6 +358,11 @@ class NuckelaveeEnemy {
     // Toxic breath cloud — green wisps that drift through the aura zone
     this.breathParticles = [];
     this.breathSpawnTimer = 0;
+
+    // Poison trail — gas left behind as it moves
+    this.trailParticles   = [];
+    this.trailSpawnTimer  = 0;
+    this.trailDamageCooldown = 0;
   }
 
   update(player, room) {
@@ -397,6 +402,40 @@ class NuckelaveeEnemy {
       p.vy += randFloat(-0.04, 0.04);
       p.life--;
       if (p.life <= 0) this.breathParticles.splice(i, 1);
+    }
+
+    // Poison trail — spawn wisps at current position
+    this.trailSpawnTimer--;
+    if (this.trailSpawnTimer <= 0) {
+      this.trailParticles.push({
+        x: this.pos.x + randFloat(-8, 8),
+        y: this.pos.y + randFloat(-8, 8),
+        vx: randFloat(-0.25, 0.25),
+        vy: randFloat(-0.35, 0.0),  // drift slightly upward
+        life: C.NUCKELAVEE_TRAIL_LIFETIME,
+        maxLife: C.NUCKELAVEE_TRAIL_LIFETIME,
+        size: randFloat(4, 9),
+      });
+      this.trailSpawnTimer = C.NUCKELAVEE_TRAIL_INTERVAL;
+    }
+    for (let i = this.trailParticles.length - 1; i >= 0; i--) {
+      const tp = this.trailParticles[i];
+      tp.x += tp.vx; tp.y += tp.vy;
+      tp.vx += randFloat(-0.03, 0.03);
+      tp.vy += randFloat(-0.03, 0.03);
+      tp.life--;
+      if (tp.life <= 0) this.trailParticles.splice(i, 1);
+    }
+    // Trail damage — player touching any trail wisp
+    if (this.trailDamageCooldown > 0) this.trailDamageCooldown--;
+    if (this.trailDamageCooldown === 0) {
+      for (const tp of this.trailParticles) {
+        if (circleDist(player.pos.x, player.pos.y, tp.x, tp.y) < player.radius + tp.size) {
+          player.takeDamage(C.NUCKELAVEE_TRAIL_DAMAGE);
+          this.trailDamageCooldown = C.NUCKELAVEE_TRAIL_DAMAGE_INTERVAL;
+          break;
+        }
+      }
     }
 
     // Aura damage — tick every NUCKELAVEE_AURA_INTERVAL frames when player close
@@ -841,7 +880,7 @@ function _spawnDeathFX(enemy) {
   // Drop chance scales inversely with avg enemies/room so expected drops per room is floor-constant
   const avg       = G.dungeon ? G.dungeon.avgEnemiesPerRoom : C.DROP_HEAL_BASELINE_ENEMIES;
   const dropChance = C.DROP_CHANCE * C.DROP_HEAL_BASELINE_ENEMIES / avg;
-  if (enemy.type === 'boss' || enemy.type === 'mummy_boss' || Math.random() < dropChance) {
+  if (enemy.type === 'boss' || enemy.type === 'mummy_boss' || enemy.type === 'ghoul_boss' || Math.random() < dropChance) {
     G.drops.push({ x: enemy.pos.x, y: enemy.pos.y, amount: C.DROP_HEAL_AMOUNT, life: 360, maxLife: 360 });
   }
 }
@@ -899,6 +938,18 @@ class MummyFly {
     if (this.hp <= 0) {
       this.hp = 0; this.alive = false;
       G.score += this.scoreValue;
+      // Small pop of green particles when fly is killed
+      for (let i = 0; i < 5; i++) {
+        const a = randFloat(0, Math.PI * 2);
+        const spd = randFloat(0.8, 2.2);
+        G.deathParticles.push({
+          x: this.pos.x, y: this.pos.y,
+          vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+          radius: 1.5, maxRadius: 4,
+          life: 18, maxLife: 18,
+          col: C.COL_FLY, delay: 0, isFlyPop: true,
+        });
+      }
     }
   }
 }
@@ -996,6 +1047,8 @@ class MummyEnemy {
       this.hp = 0; this.alive = false;
       AudioEngine.playSFX('death');
       _spawnDeathFX(this);
+      // Clear all flies when this mummy dies (one per floor, so safe to clear all)
+      G.flies.length = 0;
     }
   }
 }
@@ -1139,6 +1192,150 @@ class MummyBossEnemy {
   }
 }
 
+// ── Ghoul Boss ────────────────────────────────────────────────────────────
+
+class GhoulBossEnemy {
+  constructor(x, y) {
+    this.pos             = { x, y };
+    this.vel             = { x: 0, y: 0 };
+    this.hp              = C.GHOUL_BOSS_HP;
+    this.maxHp           = C.GHOUL_BOSS_HP;
+    this.radius          = C.GHOUL_BOSS_RADIUS;
+    this.type            = 'ghoul_boss';
+    this.scoreValue      = C.SCORE_GHOUL_BOSS;
+    this.alive           = true;
+    this.phase           = 1;
+    this.prevPhase       = 1;
+    this.transitionTimer = 0;
+    this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.contactCooldown = 0;
+    this.leaping         = false;
+    this.leapDuration    = 0;
+    this.leapTimer       = 60;
+    this.minionTimer     = 300;
+    this.crawlPhase      = randFloat(0, Math.PI * 2);
+    this.eyeOff          = 5 + randFloat(0, 3);
+
+    this.bodyPts = Array.from({ length: 10 }, (_, i) => {
+      const a  = (Math.PI * 2 / 10) * i;
+      const rx = (1.2 + randFloat(-0.25, 0.25)) * Math.cos(a);
+      const ry = (0.8  + randFloat(-0.15, 0.15)) * Math.sin(a);
+      return [rx, ry];
+    });
+    const legBaseAngles = [-Math.PI/4, Math.PI/4, Math.PI*0.75, Math.PI*1.25];
+    this.legs = legBaseAngles.map(baseA => {
+      const nJoints = Math.random() < 0.5 ? 2 : 3;
+      const total   = 14 + randFloat(-2, 4);
+      const base    = total / (nJoints + 1);
+      return {
+        dir:     baseA + randFloat(-0.35, 0.35),
+        segLens: Array.from({ length: nJoints + 1 }, () => base + randFloat(-2, 2)),
+        bends:   Array.from({ length: nJoints },     () => randFloat(-0.6, 0.6)),
+      };
+    });
+  }
+
+  get _leapCooldownMin() { return this.phase === 3 ? 20 : this.phase === 2 ? 35 : 50; }
+  get _leapCooldownMax() { return this.phase === 3 ? 35 : this.phase === 2 ? 55 : 80; }
+  get _leapSpeed()       {
+    const b = this.phase === 3 ? 8.0 : this.phase === 2 ? 7.5 : 7.0;
+    return b * this.speedMult;
+  }
+  get _crawlSpeed()      {
+    const b = this.phase === 3 ? 2.2 : this.phase === 2 ? 1.8 : 1.4;
+    return b * this.speedMult;
+  }
+
+  update(player, room) {
+    if (!this.alive) return;
+
+    const hpFrac = this.hp / this.maxHp;
+    this.phase = hpFrac > 0.66 ? 1 : hpFrac > 0.33 ? 2 : 3;
+    if (this.phase > this.prevPhase) {
+      this.transitionTimer = C.BOSS_PHASE_TRANSITION_FRAMES;
+      this.prevPhase = this.phase;
+      AudioEngine.playSFX('boss_phase');
+    }
+    if (this.transitionTimer > 0) { this.transitionTimer--; return; }
+
+    if (this.leaping) {
+      const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      this.vel.x = n.x * this._leapSpeed;
+      this.vel.y = n.y * this._leapSpeed;
+      this.leapDuration--;
+      if (this.leapDuration <= 0) {
+        this.leaping   = false;
+        this.leapTimer = randInt(this._leapCooldownMin, this._leapCooldownMax);
+      }
+    } else {
+      const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      this.vel.x = n.x * this._crawlSpeed;
+      this.vel.y = n.y * this._crawlSpeed;
+      this.leapTimer--;
+      if (this.leapTimer <= 0) {
+        this.leaping = true; this.leapDuration = 22;
+        AudioEngine.playSFX('long_ghoul_leap');
+      }
+    }
+
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+    this._resolveCollisions(room);
+    this.crawlPhase += 0.09;
+
+    // Minion spawning (phase 2+)
+    if (this.phase >= 2) {
+      this.minionTimer--;
+      if (this.minionTimer <= 0) {
+        this.minionTimer = this.phase === 3 ? 240 : 360;
+        const p = _bossMinionPos(this.pos.x, this.pos.y,
+          this.phase === 3 ? C.LONG_GHOUL_RADIUS : C.GHOUL_RADIUS);
+        if (p) {
+          const m = this.phase === 3 ? new LongGhoulEnemy(p.x, p.y) : new GhoulEnemy(p.x, p.y);
+          m.bossMinion = true;
+          G.enemies.push(m);
+        }
+      }
+    }
+
+    if (this.contactCooldown > 0) this.contactCooldown--;
+    if (this.contactCooldown === 0 &&
+        circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
+      player.takeDamage(C.GHOUL_BOSS_CONTACT_DAMAGE);
+      this.contactCooldown = C.GHOST_CONTACT_COOLDOWN;
+    }
+  }
+
+  _resolveCollisions(room) {
+    for (const w of getWallRects()) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, w.x, w.y, w.w, w.h);
+      if (push) {
+        this.pos.x += push.x; this.pos.y += push.y;
+        if (Math.abs(push.x) > Math.abs(push.y)) this.vel.x *= -1; else this.vel.y *= -1;
+      }
+    }
+    for (const obs of room.obstacles) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, obs.x, obs.y, obs.w, obs.h);
+      if (push) {
+        this.pos.x += push.x; this.pos.y += push.y;
+        if (Math.abs(push.x) > Math.abs(push.y)) this.vel.x *= -1; else this.vel.y *= -1;
+      }
+    }
+  }
+
+  takeDamage(amount) {
+    if (this.transitionTimer > 0) return;
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.hp = 0; this.alive = false;
+      AudioEngine.playSFX('death');
+      _spawnDeathFX(this);
+      _clearBossMinions();
+      G.currentRoom.bossDoorsLocked = false;
+    }
+  }
+}
+
 // ── Boss cleanup ──────────────────────────────────────────────────────────
 
 // Kill all boss-summoned minions and clear every fly when a boss dies.
@@ -1220,8 +1417,10 @@ function spawnSkulls(room, px, py) {
 }
 
 function spawnBoss() {
-  // Even floors get the mummy boss; odd floors keep the skull boss
-  if ((G.floor || 1) % 2 === 0) return [new MummyBossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
+  // Boss cycle: skull (floor 1,4,7…), ghoul (2,5,8…), mummy (3,6,9…)
+  const m = (G.floor || 1) % 3;
+  if (m === 0) return [new MummyBossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
+  if (m === 2) return [new GhoulBossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
   return [new BossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
 }
 

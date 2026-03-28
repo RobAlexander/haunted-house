@@ -113,6 +113,8 @@ function draw() {
     checkDropPickup();
     checkWidePowerup();
     checkMaxHpPowerup();
+    checkSpeedPowerup();
+    checkInvulnPowerup();
     tickParticles();
 
     if (G.clearedFlash > 0) G.clearedFlash--;
@@ -146,7 +148,7 @@ function mouseReleased() {
 
 const DEV_COMMANDS = [
   'boss', 'fullmap', 'help', 'power', 'setfloor', 'spawn_maxhp',
-  'spawn_ghost', 'spawn_ghoul', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_nuckelavee', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
+  'spawn_ghost', 'spawn_ghoul', 'spawn_ghoul_boss', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_nuckelavee', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
 function _devSpawn(EnemyClass, overrides) {
@@ -229,6 +231,7 @@ function _execDevCommand(cmd) {
   if (cmd === 'spawn_red_ghost') return _devSpawn(GhostEnemy, { variant: 'lunge' });
   if (cmd === 'spawn_skull')     return _devSpawn(SkullEnemy);
   if (cmd === 'spawn_ghoul')      return _devSpawn(GhoulEnemy);
+  if (cmd === 'spawn_ghoul_boss') return _devSpawn(GhoulBossEnemy);
   if (cmd === 'spawn_long_ghoul') return _devSpawn(LongGhoulEnemy);
   if (cmd === 'spawn_mummy')       return _devSpawn(MummyEnemy);
   if (cmd === 'spawn_white_skull') return _devSpawn(WhiteSkullEnemy);

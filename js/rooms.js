@@ -123,14 +123,25 @@ class DungeonGraph {
       tr.pickup = { x: C.WIDTH / 2, y: C.HEIGHT / 2, amount: C.PICKUP_HEAL_AMOUNT };
       tr.cleared = true;
 
-      // Possibly place wide-bullet powerup in a second dead-end
+      // Possibly place a powerup in a second dead-end — random from three options
       const remaining = deadEnds.filter(r => r !== tr);
       if (remaining.length > 0 && Math.random() < 0.65) {
-        const wr = remaining[randInt(0, remaining.length - 1)];
-        wr.widePowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
-        wr.widePowerupActive = false;
-        wr.widePowerupTaken  = false;
-        wr.cleared           = true;
+        const wr   = remaining[randInt(0, remaining.length - 1)];
+        const pick = Math.random();
+        wr.cleared = true;
+        if (pick < 0.40) {
+          wr.widePowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+          wr.widePowerupActive = false;
+          wr.widePowerupTaken  = false;
+        } else if (pick < 0.70) {
+          wr.speedPowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+          wr.speedPowerupActive = false;
+          wr.speedPowerupTaken  = false;
+        } else {
+          wr.invulnPowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+          wr.invulnPowerupActive = false;
+          wr.invulnPowerupTaken  = false;
+        }
       }
       // Rarely place max-HP powerup in a third dead-end (instant collect, no inventory slot)
       const remaining2 = remaining.filter(r => !r.widePowerup);

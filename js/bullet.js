@@ -103,7 +103,7 @@ class BulletPool {
           // Shield intercept: boss during phase transition, or elite shielded enemy.
           // Shield radius is larger than the body, so a bullet reaching the body
           // must pass through the shield first — only one check needed.
-          const shieldR = ((e.type === 'boss' || e.type === 'mummy_boss') && e.transitionTimer > 0) ? e.radius + 18
+          const shieldR = ((e.type === 'boss' || e.type === 'mummy_boss' || e.type === 'ghoul_boss') && e.transitionTimer > 0) ? e.radius + 18
                         : e.shielded ? e.radius + 12
                         : 0;
           if (shieldR > 0) {
