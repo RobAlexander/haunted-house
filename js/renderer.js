@@ -724,43 +724,42 @@ const Renderer = {
     const ry = y + riseShift;
     const sc = 1.65; // scale factor vs normal mummy
 
-    // Phase transition invulnerability glow — mummy-silhouette polygon
+    // Shared silhouette polygon — used for both the phase halo and invuln shield.
+    // pad controls how far beyond the body the polygon extends.
+    const _silPoly = (pad) => {
+      const hW  =  9 * sc + pad;
+      const aW  = 26 * sc + pad;
+      const bW  = 11 * sc + pad;
+      const htY = ry - 38 * sc - pad;
+      const nkY = ry - 23 * sc;
+      const asY = ry - 14 * sc;
+      const atY = ry -  5 * sc + pad;
+      const bbY = ry + 10 * sc + pad;
+      beginShape();
+      vertex(x - hW, htY); vertex(x + hW, htY);
+      vertex(x + hW, nkY); vertex(x + aW, asY);
+      vertex(x + aW, atY); vertex(x + bW, atY);
+      vertex(x + bW, bbY); vertex(x - bW, bbY);
+      vertex(x - bW, atY); vertex(x - aW, atY);
+      vertex(x - aW, asY); vertex(x - hW, nkY);
+      endShape(CLOSE);
+    };
+
+    // Phase transition invulnerability glow (yellow)
     if (e.transitionTimer > 0) {
       const tf    = e.transitionTimer / C.BOSS_PHASE_TRANSITION_FRAMES;
       const pulse = 0.5 + 0.5 * Math.sin(G.frame * 0.25);
-      const pad   = 15;
-      const hW  =  9 * sc + pad;        // head half-width  ≈ 30
-      const aW  = 26 * sc + pad;        // arm-tip reach    ≈ 58
-      const bW  = 11 * sc + pad;        // body half-width  ≈ 33
-      const htY = ry - 38 * sc - pad;   // head top
-      const nkY = ry - 23 * sc;         // neck (head bottom)
-      const asY = ry - 14 * sc;         // arm shoulder anchor
-      const atY = ry -  5 * sc + pad;   // arm-tip bottom
-      const bbY = ry + 10 * sc + pad;   // body bottom
-
-      const _poly = () => {
-        beginShape();
-        vertex(x - hW, htY); vertex(x + hW, htY);   // head top
-        vertex(x + hW, nkY); vertex(x + aW, asY);   // neck → arm shoulder
-        vertex(x + aW, atY); vertex(x + bW, atY);   // arm tip → body
-        vertex(x + bW, bbY); vertex(x - bW, bbY);   // body bottom
-        vertex(x - bW, atY); vertex(x - aW, atY);   // body → left arm tip
-        vertex(x - aW, asY); vertex(x - hW, nkY);   // left arm shoulder → neck
-        endShape(CLOSE);
-      };
-
       drawingContext.globalAlpha = tf * (0.35 + 0.3 * pulse);
-      noStroke(); fill('#ffee00'); _poly();
+      noStroke(); fill('#ffee00'); _silPoly(15);
       drawingContext.globalAlpha = tf * (0.7 + 0.3 * pulse);
-      noFill(); stroke('#ffee00'); strokeWeight(2.5); _poly();
+      noFill(); stroke('#ffee00'); strokeWeight(2.5); _silPoly(15);
       drawingContext.globalAlpha = 1;
     }
 
-    // Phase halo
+    // Phase halo — same silhouette shape, dim mummy-colour wash
     if (e.phase > 1) {
       drawingContext.globalAlpha = (e.phase - 1) * 0.10;
-      noStroke(); fill(col);
-      circle(x, ry, e.radius * 2.6);
+      noStroke(); fill(col); _silPoly(8);
       drawingContext.globalAlpha = 1;
     }
 
