@@ -1212,6 +1212,7 @@ class GhoulBossEnemy {
     this.leaping         = false;
     this.leapDuration    = 0;
     this.leapTimer       = 60;
+    this.windupTimer     = 0;   // pre-leap tell: counts down before leap starts
     this.minionTimer     = 300;
     this.crawlPhase      = randFloat(0, Math.PI * 2);
     this.eyeOff          = 5 + randFloat(0, 3);
@@ -1235,8 +1236,9 @@ class GhoulBossEnemy {
     });
   }
 
-  get _leapCooldownMin() { return this.phase === 3 ? 20 : this.phase === 2 ? 35 : 50; }
-  get _leapCooldownMax() { return this.phase === 3 ? 35 : this.phase === 2 ? 55 : 80; }
+  get _leapCooldownMin() { return this.phase === 3 ? 40 : this.phase === 2 ? 70 : 100; }
+  get _leapCooldownMax() { return this.phase === 3 ? 70 : this.phase === 2 ? 110 : 160; }
+  get _windupFrames()    { return 28; }  // tell duration before the leap fires
   get _leapSpeed()       {
     const b = this.phase === 3 ? 8.0 : this.phase === 2 ? 7.5 : 7.0;
     return b * this.speedMult;
@@ -1267,14 +1269,21 @@ class GhoulBossEnemy {
         this.leaping   = false;
         this.leapTimer = randInt(this._leapCooldownMin, this._leapCooldownMax);
       }
+    } else if (this.windupTimer > 0) {
+      // Tell phase — crouch in place, don't move
+      this.vel.x = 0; this.vel.y = 0;
+      this.windupTimer--;
+      if (this.windupTimer <= 0) {
+        this.leaping = true; this.leapDuration = 22;
+        AudioEngine.playSFX('long_ghoul_leap');
+      }
     } else {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
       this.vel.x = n.x * this._crawlSpeed;
       this.vel.y = n.y * this._crawlSpeed;
       this.leapTimer--;
       if (this.leapTimer <= 0) {
-        this.leaping = true; this.leapDuration = 22;
-        AudioEngine.playSFX('long_ghoul_leap');
+        this.windupTimer = this._windupFrames;
       }
     }
 

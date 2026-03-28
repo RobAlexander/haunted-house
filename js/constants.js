@@ -158,7 +158,7 @@ const C = {
   // Mummy Fly — tiny, pursue player, time out
   FLY_HP:               5,
   FLY_RADIUS:           4,
-  FLY_SPEED:            2.86,
+  FLY_SPEED:            2.72,
   FLY_LIFETIME:         420,    // ~7 s
   FLY_CONTACT_DAMAGE:   8,
   SCORE_FLY:            3,

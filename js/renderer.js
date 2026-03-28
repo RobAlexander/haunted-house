@@ -678,28 +678,44 @@ const Renderer = {
     const x = e.pos.x, y = e.pos.y, r = e.radius;
     const p   = e.crawlPhase;
     const transitioning = e.transitionTimer > 0;
-    const col = transitioning ? '#ffee00' : C.COL_GHOUL_BOSS;
+    const windup = e.windupTimer > 0;
+    // Windup crouches: squash y, stretch x. Frac goes 0→1 over the windup window.
+    const windupFrac = windup ? 1 - e.windupTimer / e._windupFrames : 0;
+    const scaleX = windup ? 1 + windupFrac * 0.55 : 1;  // widen up to 1.55×
+    const scaleY = windup ? 1 - windupFrac * 0.45 : 1;  // squash down to 0.55×
 
-    // Phase glow ring behind body
-    const phaseCol = e.phase === 3 ? '#ff3333' : e.phase === 2 ? '#ff7744' : '#aa4455';
-    const ringAlpha = 0.22 + 0.12 * Math.sin(G.frame * 0.09);
-    drawingContext.globalAlpha = transitioning ? 0.5 : ringAlpha;
-    noFill(); stroke(transitioning ? '#ffee00' : phaseCol); strokeWeight(5);
+    const col = transitioning ? '#ffee00' : windup ? '#ff2222' : C.COL_GHOUL_BOSS;
+
+    // Phase / windup glow ring
+    const phaseCol = windup ? '#ff0000'
+                   : e.phase === 3 ? '#ff3333'
+                   : e.phase === 2 ? '#ff7744' : '#aa4455';
+    const ringAlpha = windup ? 0.45 + 0.35 * Math.sin(G.frame * 0.35)
+                             : transitioning ? 0.5
+                             : 0.22 + 0.12 * Math.sin(G.frame * 0.09);
+    drawingContext.globalAlpha = ringAlpha;
+    noFill(); stroke(transitioning ? '#ffee00' : phaseCol);
+    strokeWeight(windup ? 6 : 5);
     circle(x, y, (r + 14) * 2);
     drawingContext.globalAlpha = 1;
 
-    // Larger irregular body
+    // Body — squash/stretch applied via scale transform during windup
+    push();
+    translate(x, y);
+    scale(scaleX, scaleY);
     noFill(); stroke(col); strokeWeight(2);
     const bp = e.bodyPts, bn = bp.length;
     beginShape();
-    curveVertex(x + bp[bn-1][0]*r, y + bp[bn-1][1]*r);
-    for (const [ox, oy] of bp) curveVertex(x + ox*r, y + oy*r);
-    curveVertex(x + bp[0][0]*r, y + bp[0][1]*r);
-    curveVertex(x + bp[1][0]*r, y + bp[1][1]*r);
+    curveVertex(bp[bn-1][0]*r, bp[bn-1][1]*r);
+    for (const [ox, oy] of bp) curveVertex(ox*r, oy*r);
+    curveVertex(bp[0][0]*r, bp[0][1]*r);
+    curveVertex(bp[1][0]*r, bp[1][1]*r);
     endShape(CLOSE);
+    pop();
 
-    // 4 jointed legs — heavier weight, longer
-    strokeWeight(2);
+    // 4 jointed legs — tucked in during windup (shorter effective length)
+    const legScale = windup ? 0.55 + 0.45 * (1 - windupFrac) : 1;
+    strokeWeight(2); stroke(col);
     const animSigns = [1, -1, 1, -1];
     for (let i = 0; i < 4; i++) {
       const leg  = e.legs[i];
@@ -709,8 +725,8 @@ const Renderer = {
       let cy  = y + Math.sin(dir) * r * 0.7;
       for (let k = 0; k < leg.segLens.length; k++) {
         if (k > 0) dir += leg.bends[k - 1];
-        const nx = cx + Math.cos(dir) * leg.segLens[k];
-        const ny = cy + Math.sin(dir) * leg.segLens[k];
+        const nx = cx + Math.cos(dir) * leg.segLens[k] * legScale;
+        const ny = cy + Math.sin(dir) * leg.segLens[k] * legScale;
         line(cx, cy, nx, ny);
         if (k < leg.bends.length) {
           strokeWeight(4); point(nx, ny); strokeWeight(2);
@@ -719,12 +735,15 @@ const Renderer = {
       }
     }
 
-    // Eyes — larger, glow red, blaze when leaping
-    const eyeAlpha = e.leaping ? 1.0 : 0.8;
+    // Eyes — blaze during windup and leap
+    const eyeCol  = (transitioning) ? '#ffee00'
+                  : (windup || e.leaping) ? '#ff0000' : '#ff3355';
+    const eyeSize = windup ? 8 + windupFrac * 5 : 8;   // eyes widen during windup
+    const eyeAlpha = (windup || e.leaping) ? 1.0 : 0.8;
     drawingContext.globalAlpha = eyeAlpha;
-    noStroke(); fill(transitioning ? '#ffee00' : '#ff3355');
-    circle(x - e.eyeOff, y - 3, 8);
-    circle(x + e.eyeOff, y - 3, 8);
+    noStroke(); fill(eyeCol);
+    circle(x - e.eyeOff, y - 3, eyeSize);
+    circle(x + e.eyeOff, y - 3, eyeSize);
     drawingContext.globalAlpha = 1;
 
     this._drawBossHP(e, C.COL_GHOUL_BOSS);
@@ -1133,7 +1152,7 @@ const Renderer = {
     rect(bx, by, bw * frac, bh);
     noFill(); stroke(col); strokeWeight(0.5); rect(bx, by, bw, bh);
     noStroke(); fill(C.COL_HUD_TEXT); textSize(9); textAlign(CENTER, TOP);
-    text(`BOSS  ${boss.hp} / ${boss.maxHp}`, C.WIDTH / 2, by + bh + 2);
+    text(`BOSS  ${Math.round(boss.hp)} / ${boss.maxHp}`, C.WIDTH / 2, by + bh + 2);
   },
 
   // ── Player ────────────────────────────────────────────────────────────
@@ -1315,7 +1334,7 @@ const Renderer = {
     fill(hpColor); rect(bx, by, bw * frac, bh);
     noFill(); stroke(C.COL_HUD_TEXT); strokeWeight(0.5); rect(bx, by, bw, bh);
     noStroke(); fill(C.COL_HUD_TEXT); textSize(10); textAlign(LEFT, TOP);
-    text(`HP  ${p.hp} / ${p.maxHp}`, bx, by + bh + 3);
+    text(`HP  ${Math.round(p.hp)} / ${p.maxHp}`, bx, by + bh + 3);
 
     // Powerup inventory slots — sit to the right of the HP bar, same height
     {
