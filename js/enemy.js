@@ -590,11 +590,15 @@ class BossEnemy {
       } else {
         this.spiralInterval--;
         if (this.spiralInterval <= 0) {
-          const vx = Math.cos(this.spiralAngle) * C.BOSS_BULLET_SPEED;
-          const vy = Math.sin(this.spiralAngle) * C.BOSS_BULLET_SPEED;
-          const ox = Math.cos(this.spiralAngle) * (this.radius + 6);
-          const oy = Math.sin(this.spiralAngle) * (this.radius + 6);
-          G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.BOSS_BULLET_DAMAGE);
+          const armStep = (Math.PI * 2) / C.BOSS_SPIRAL_ARMS;
+          for (let arm = 0; arm < C.BOSS_SPIRAL_ARMS; arm++) {
+            const a  = this.spiralAngle + armStep * arm;
+            const vx = Math.cos(a) * C.BOSS_BULLET_SPEED;
+            const vy = Math.sin(a) * C.BOSS_BULLET_SPEED;
+            const ox = Math.cos(a) * (this.radius + 6);
+            const oy = Math.sin(a) * (this.radius + 6);
+            G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.BOSS_BULLET_DAMAGE);
+          }
           this.spiralAngle += C.BOSS_SPIRAL_ROT;
           this.spiralBulletsLeft--;
           this.spiralInterval = C.BOSS_SPIRAL_INTERVAL;

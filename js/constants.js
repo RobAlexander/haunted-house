@@ -63,9 +63,10 @@ const C = {
   BOSS_BULLET_SPEED:      4,
   BOSS_BULLET_DAMAGE:     20,
   BOSS_PHASE_TRANSITION_FRAMES: 120,  // 2s invulnerability + yellow glow on phase change
-  BOSS_SPIRAL_BULLETS:    18,         // bullets per spiral attack (phase 3 only)
-  BOSS_SPIRAL_INTERVAL:   3,          // frames between each spiral bullet
-  BOSS_SPIRAL_ROT:        0.75,       // radians added to angle each bullet (~2.1 rotations total)
+  BOSS_SPIRAL_BULLETS:    18,         // steps per spiral attack (phase 3 only)
+  BOSS_SPIRAL_INTERVAL:   3,          // frames between each spiral step
+  BOSS_SPIRAL_ROT:        0.75,       // radians added to angle per step (~2.1 rotations total)
+  BOSS_SPIRAL_ARMS:       3,          // simultaneous bullet arms per step
 
   // Score
   SCORE_GHOST:       10,

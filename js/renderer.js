@@ -848,8 +848,8 @@ const Renderer = {
       strokeWeight(isWarning ? 3 : 2.5);
       noFill();
       const armLen = isWarning ? 26 : 20;
-      for (let i = 0; i < 4; i++) {
-        const a = e.spiralAngle + (Math.PI / 2) * i;
+      for (let i = 0; i < C.BOSS_SPIRAL_ARMS; i++) {
+        const a = e.spiralAngle + (Math.PI * 2 / C.BOSS_SPIRAL_ARMS) * i;
         line(x + Math.cos(a) * (r + 4),  y + Math.sin(a) * (r + 4),
              x + Math.cos(a) * (r + armLen), y + Math.sin(a) * (r + armLen));
       }
