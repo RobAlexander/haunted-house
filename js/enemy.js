@@ -592,14 +592,19 @@ class BossEnemy {
         if (this.spiralInterval <= 0) {
           const armStep = (Math.PI * 2) / C.BOSS_SPIRAL_ARMS;
           for (let arm = 0; arm < C.BOSS_SPIRAL_ARMS; arm++) {
-            const a  = this.spiralAngle + armStep * arm;
-            const vx = Math.cos(a) * C.BOSS_BULLET_SPEED;
-            const vy = Math.sin(a) * C.BOSS_BULLET_SPEED;
+            // Per-arm angular jitter — each arm deviates independently
+            const jitter = randFloat(-0.38, 0.38);
+            const a  = this.spiralAngle + armStep * arm + jitter;
+            // Slight speed variation makes arms spread at different depths
+            const spd = C.BOSS_BULLET_SPEED * (0.82 + Math.random() * 0.38);
+            const vx = Math.cos(a) * spd;
+            const vy = Math.sin(a) * spd;
             const ox = Math.cos(a) * (this.radius + 6);
             const oy = Math.sin(a) * (this.radius + 6);
             G.bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'enemy', C.BOSS_BULLET_DAMAGE);
           }
-          this.spiralAngle += C.BOSS_SPIRAL_ROT;
+          // Variable rotation per step — spiral doesn't advance at a fixed rate
+          this.spiralAngle += C.BOSS_SPIRAL_ROT * (0.65 + Math.random() * 0.75);
           this.spiralBulletsLeft--;
           this.spiralInterval = C.BOSS_SPIRAL_INTERVAL;
           if (this.spiralBulletsLeft <= 0) this.spiralActive = false;
