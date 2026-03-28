@@ -69,6 +69,10 @@ function draw() {
     if (mouseDown) G.player.shoot(G.bullets);
 
     for (const e of G.enemies) e.update(G.player, G.currentRoom);
+    for (let i = G.flies.length - 1; i >= 0; i--) {
+      G.flies[i].update(G.player);
+      if (!G.flies[i].alive) G.flies.splice(i, 1);
+    }
 
     // Score kills before bullet update removes dead enemies
     for (const e of G.enemies) {
@@ -76,6 +80,20 @@ function draw() {
     }
 
     G.bullets.update(G.player, G.enemies, G.currentRoom);
+
+    // Player bullets can also hit flies
+    for (const b of G.bullets.pool) {
+      if (!b.active || b.owner !== 'player') continue;
+      for (let i = G.flies.length - 1; i >= 0; i--) {
+        const fly = G.flies[i];
+        if (!fly.alive) continue;
+        if (circleCollide(b.pos.x, b.pos.y, b.radius, fly.pos.x, fly.pos.y, fly.radius)) {
+          fly.takeDamage(b.damage);
+          b.deactivate();
+          break;
+        }
+      }
+    }
 
     // Enemy bullets also damage the player
     for (const b of G.bullets.pool) {
@@ -94,6 +112,7 @@ function draw() {
     checkPickup();
     checkDropPickup();
     checkWidePowerup();
+    checkMaxHpPowerup();
     tickParticles();
 
     if (G.clearedFlash > 0) G.clearedFlash--;
@@ -127,7 +146,7 @@ function mouseReleased() {
 
 const DEV_COMMANDS = [
   'boss', 'fullmap', 'help', 'power', 'setfloor',
-  'spawn_ghost', 'spawn_ghoul', 'spawn_red_ghost', 'spawn_skull',
+  'spawn_ghost', 'spawn_ghoul', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_red_ghost', 'spawn_skull',
 ];
 
 function _devSpawn(EnemyClass, overrides) {
@@ -199,7 +218,9 @@ function _execDevCommand(cmd) {
   if (cmd === 'spawn_ghost')     return _devSpawn(GhostEnemy);
   if (cmd === 'spawn_red_ghost') return _devSpawn(GhostEnemy, { variant: 'lunge' });
   if (cmd === 'spawn_skull')     return _devSpawn(SkullEnemy);
-  if (cmd === 'spawn_ghoul')     return _devSpawn(GhoulEnemy);
+  if (cmd === 'spawn_ghoul')      return _devSpawn(GhoulEnemy);
+  if (cmd === 'spawn_long_ghoul') return _devSpawn(LongGhoulEnemy);
+  if (cmd === 'spawn_mummy')      return _devSpawn(MummyEnemy);
   if (cmd === 'help' || cmd === '') {
     return DEV_COMMANDS.join('  ');
   }
@@ -293,6 +314,15 @@ function keyPressed() {
 
   if (key.toLowerCase() === 'm' && G.state === STATES.PLAYING) {
     G.mapOpen = !G.mapOpen;
+    return false;
+  }
+
+  if (key === ' ' && G.state === STATES.PLAYING) {
+    if (G.player && G.player.alive) G.player.usePowerup();
+    return false;
+  }
+  if (key.toLowerCase() === 'q' && G.state === STATES.PLAYING) {
+    if (G.player && G.player.alive) G.player.cyclePowerup();
     return false;
   }
 

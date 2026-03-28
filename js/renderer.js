@@ -22,8 +22,10 @@ const Renderer = {
     this.drawRoom(G.currentRoom);
     this.drawPickup(G.currentRoom);
     this.drawWidePowerup(G.currentRoom);
+    this.drawMaxHpPowerup(G.currentRoom);
     this.drawRagSymbol(G.currentRoom);
     this.drawDrops(G.drops);
+    this.drawFlies(G.flies);
     this.drawDeathParticles(G.deathParticles);
     this.drawBullets(G.bullets);
     this.drawEnemies(G.enemies);
@@ -309,6 +311,30 @@ const Renderer = {
     text('POWER SHOT', p.x, p.y + 20);
   },
 
+  drawMaxHpPowerup(room) {
+    if (!room || !room.maxhpPowerupActive || room.maxhpPowerupTaken) return;
+    const p = room.maxhpPowerup;
+    const pulse = 0.65 + 0.35 * Math.sin(G.frame * 0.09);
+    drawingContext.globalAlpha = pulse;
+    noFill(); stroke(C.COL_MAXHP_PICKUP); strokeWeight(2);
+    beginShape();
+    vertex(p.x,      p.y - 17);
+    vertex(p.x + 11, p.y);
+    vertex(p.x,      p.y + 17);
+    vertex(p.x - 11, p.y);
+    endShape(CLOSE);
+    strokeWeight(1);
+    beginShape();
+    vertex(p.x,     p.y - 9);
+    vertex(p.x + 6, p.y);
+    vertex(p.x,     p.y + 9);
+    vertex(p.x - 6, p.y);
+    endShape(CLOSE);
+    drawingContext.globalAlpha = 1;
+    noStroke(); fill(C.COL_MAXHP_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
+    text('MAX HP', p.x, p.y + 26);
+  },
+
   drawRagSymbol(room) {
     if (!room || !room.ragSymbol || room.ragSymbol.collected) return;
     const s    = room.ragSymbol;
@@ -383,7 +409,26 @@ const Renderer = {
       if (e.type === 'ghost')    this._drawGhost(e);
       if (e.type === 'skull') this._drawSkull(e);
       if (e.type === 'boss')     this._drawBoss(e);
-      if (e.type === 'ghoul')    this._drawGhoul(e);
+      if (e.type === 'ghoul')      this._drawGhoul(e);
+      if (e.type === 'long_ghoul') this._drawLongGhoul(e);
+      if (e.type === 'mummy')      this._drawMummy(e);
+      if (e.type === 'mummy_boss') this._drawMummyBoss(e);
+    }
+  },
+
+  drawFlies(flies) {
+    if (!flies || flies.length === 0) return;
+    for (const f of flies) {
+      if (!f.alive) continue;
+      const x = f.pos.x, y = f.pos.y;
+      // Body dot
+      noStroke(); fill(C.COL_FLY);
+      circle(x, y, f.radius * 2);
+      // Wings — two small arcs either side
+      const ws = 0.7 + 0.3 * Math.abs(Math.sin(f.wingPhase));
+      stroke(C.COL_FLY); strokeWeight(0.7); noFill();
+      arc(x - 3, y - 1, 6 * ws, 4 * ws, -Math.PI, 0);
+      arc(x + 3, y - 1, 6 * ws, 4 * ws, -Math.PI, 0);
     }
   },
 
@@ -510,6 +555,199 @@ const Renderer = {
     this._drawEnemyHP(e, x, y - r - 8);
   },
 
+  _drawLongGhoul(e) {
+    const x = e.pos.x, y = e.pos.y, r = e.radius;
+    const p   = e.crawlPhase;
+    const col = C.COL_LONG_GHOUL;
+
+    // Scrunched irregular body — bodyPts encode compressed y in constructor
+    noFill(); stroke(col); strokeWeight(1.5);
+    const bp = e.bodyPts, bn = bp.length;
+    beginShape();
+    curveVertex(x + bp[bn-1][0]*r, y + bp[bn-1][1]*r);
+    for (const [ox, oy] of bp) curveVertex(x + ox*r, y + oy*r);
+    curveVertex(x + bp[0][0]*r, y + bp[0][1]*r);
+    curveVertex(x + bp[1][0]*r, y + bp[1][1]*r);
+    endShape(CLOSE);
+
+    // 5 jointed legs — last one (index 4) is always longer
+    strokeWeight(1.5);
+    for (let i = 0; i < e.legs.length; i++) {
+      const leg  = e.legs[i];
+      const anim = (i % 2 === 0 ? 1 : -1) * Math.sin(p) * 0.25;
+      let dir = leg.dir + anim;
+      let cx  = x + Math.cos(dir) * r * 1.05;
+      let cy  = y + Math.sin(dir) * r * 0.7;
+      for (let k = 0; k < leg.segLens.length; k++) {
+        if (k > 0) dir += leg.bends[k - 1];
+        const nx = cx + Math.cos(dir) * leg.segLens[k];
+        const ny = cy + Math.sin(dir) * leg.segLens[k];
+        line(cx, cy, nx, ny);
+        if (k < leg.bends.length) {
+          strokeWeight(3); point(nx, ny); strokeWeight(1.5);
+        }
+        cx = nx; cy = ny;
+      }
+    }
+
+    // Eyes — brighter when leaping
+    const eyeAlpha = e.leaping ? 1.0 : 0.65;
+    drawingContext.globalAlpha = eyeAlpha;
+    noStroke(); fill(col);
+    circle(x - e.eyeOff, y - 2, 5);
+    circle(x + e.eyeOff, y - 2, 5);
+    drawingContext.globalAlpha = 1;
+
+    this._drawEnemyHP(e, x, y - r - 8);
+  },
+
+  _drawMummyBody(x, ry, col, scale, mouthOpen) {
+    // Body — rectangular, bandage-wrapped
+    const bw = 11 * scale, bh = 30 * scale;
+    noFill(); stroke(col); strokeWeight(1.5);
+    rect(x - bw, ry - 20 * scale, bw * 2, bh, 2);
+    // Horizontal bandage strips on body
+    strokeWeight(0.7);
+    for (let i = 1; i < 4; i++) {
+      const by2 = ry - 20 * scale + i * 7 * scale;
+      line(x - bw, by2, x + bw, by2);
+    }
+    // Head — rounded rect
+    const hw = 9 * scale, hh = 15 * scale;
+    strokeWeight(1.5);
+    rect(x - hw, ry - 38 * scale, hw * 2, hh, 2);
+    // Bandage cross on head
+    strokeWeight(0.7);
+    line(x - hw, ry - 31 * scale, x + hw, ry - 31 * scale);
+    // Mouth — opens when flies released
+    if (mouthOpen > 0) {
+      const mo = Math.min(1, mouthOpen / 15);
+      strokeWeight(1); stroke(C.COL_FLY);
+      const mw = 5 * scale * mo, mhh = 3 * scale * mo;
+      rect(x - mw, ry - 26 * scale, mw * 2, mhh, 1);
+    }
+    // Arms — raised, undead pose
+    stroke(col); strokeWeight(1.5);
+    const sw = Math.sin(G.frame * 0.03) * 1.5;
+    line(x - bw, ry - 14 * scale, x - 22 * scale, ry - 12 * scale + sw);
+    line(x - 22 * scale, ry - 12 * scale + sw, x - 26 * scale, ry - 5 * scale + sw);
+    line(x + bw, ry - 14 * scale, x + 22 * scale, ry - 12 * scale - sw);
+    line(x + 22 * scale, ry - 12 * scale - sw, x + 26 * scale, ry - 5 * scale - sw);
+  },
+
+  _drawMummy(e) {
+    const x = e.pos.x, y = e.pos.y, col = C.COL_MUMMY;
+    const riseFrac  = e.rising ? 1 - e.riseTimer / C.MUMMY_RISE_FRAMES : 1;
+    const riseShift = e.rising ? (1 - riseFrac) * 44 : 0;
+    const ry = y + riseShift;
+
+    // Alpha: fades in during rising, full after
+    drawingContext.globalAlpha = 0.15 + 0.85 * riseFrac;
+
+    this._drawMummyBody(x, ry, col, 1.0, e.mouthOpen);
+
+    // Eyes — green glow, brighter after risen
+    noStroke(); fill(C.COL_FLY);
+    const eyeA = e.rising ? riseFrac : 1.0;
+    drawingContext.globalAlpha = eyeA;
+    circle(x - 4, ry - 31, 4);
+    circle(x + 4, ry - 31, 4);
+    drawingContext.globalAlpha = 1;
+
+    // Ground cracks at feet during rising
+    if (e.rising && riseFrac > 0.05) {
+      const crackPulse = 0.4 + 0.4 * Math.sin(G.frame * 0.15);
+      drawingContext.globalAlpha = crackPulse * riseFrac;
+      noFill(); stroke(col); strokeWeight(1);
+      for (let i = 0; i < 7; i++) {
+        const a = (Math.PI * 2 / 7) * i;
+        const r1 = 8, r2 = 14 + (i % 2) * 5;
+        line(x + Math.cos(a)*r1, (y+8) + Math.sin(a)*r1*0.35,
+             x + Math.cos(a)*r2, (y+8) + Math.sin(a)*r2*0.35);
+      }
+      drawingContext.globalAlpha = 1;
+    }
+
+    // Bar fully above head (head top = ry - 38, bar height = 4, gap = 4)
+    if (!e.rising) this._drawEnemyHP(e, x, y - 46);
+  },
+
+  _drawMummyBoss(e) {
+    const x = e.pos.x, y = e.pos.y, col = C.COL_MUMMY_BOSS;
+    const riseFrac  = e.rising ? 1 - e.riseTimer / (C.MUMMY_RISE_FRAMES + 60) : 1;
+    const riseShift = e.rising ? (1 - riseFrac) * 56 : 0;
+    const ry = y + riseShift;
+    const sc = 1.65; // scale factor vs normal mummy
+
+    // Phase transition invulnerability glow — mummy-silhouette polygon
+    if (e.transitionTimer > 0) {
+      const tf    = e.transitionTimer / C.BOSS_PHASE_TRANSITION_FRAMES;
+      const pulse = 0.5 + 0.5 * Math.sin(G.frame * 0.25);
+      const pad   = 15;
+      const hW  =  9 * sc + pad;        // head half-width  ≈ 30
+      const aW  = 26 * sc + pad;        // arm-tip reach    ≈ 58
+      const bW  = 11 * sc + pad;        // body half-width  ≈ 33
+      const htY = ry - 38 * sc - pad;   // head top
+      const nkY = ry - 23 * sc;         // neck (head bottom)
+      const asY = ry - 14 * sc;         // arm shoulder anchor
+      const atY = ry -  5 * sc + pad;   // arm-tip bottom
+      const bbY = ry + 10 * sc + pad;   // body bottom
+
+      const _poly = () => {
+        beginShape();
+        vertex(x - hW, htY); vertex(x + hW, htY);   // head top
+        vertex(x + hW, nkY); vertex(x + aW, asY);   // neck → arm shoulder
+        vertex(x + aW, atY); vertex(x + bW, atY);   // arm tip → body
+        vertex(x + bW, bbY); vertex(x - bW, bbY);   // body bottom
+        vertex(x - bW, atY); vertex(x - aW, atY);   // body → left arm tip
+        vertex(x - aW, asY); vertex(x - hW, nkY);   // left arm shoulder → neck
+        endShape(CLOSE);
+      };
+
+      drawingContext.globalAlpha = tf * (0.35 + 0.3 * pulse);
+      noStroke(); fill('#ffee00'); _poly();
+      drawingContext.globalAlpha = tf * (0.7 + 0.3 * pulse);
+      noFill(); stroke('#ffee00'); strokeWeight(2.5); _poly();
+      drawingContext.globalAlpha = 1;
+    }
+
+    // Phase halo
+    if (e.phase > 1) {
+      drawingContext.globalAlpha = (e.phase - 1) * 0.10;
+      noStroke(); fill(col);
+      circle(x, ry, e.radius * 2.6);
+      drawingContext.globalAlpha = 1;
+    }
+
+    drawingContext.globalAlpha = 0.15 + 0.85 * riseFrac;
+    this._drawMummyBody(x, ry, col, sc, e.mouthOpen);
+
+    // Eyes — bigger, phase-coloured
+    const eyeCol  = e.phase === 3 ? '#ff4444' : e.phase === 2 ? '#ffaa00' : C.COL_FLY;
+    const eyeSize = 5 * sc * (e.phase === 3 ? 1.3 : 1.0);
+    noStroke(); fill(eyeCol);
+    drawingContext.globalAlpha = e.rising ? riseFrac : 1.0;
+    circle(x - 6 * sc, ry - 31 * sc, eyeSize);
+    circle(x + 6 * sc, ry - 31 * sc, eyeSize);
+    drawingContext.globalAlpha = 1;
+
+    // Ground cracks during rising
+    if (e.rising && riseFrac > 0.05) {
+      const crackPulse = 0.4 + 0.4 * Math.sin(G.frame * 0.12);
+      drawingContext.globalAlpha = crackPulse * riseFrac;
+      noFill(); stroke(col); strokeWeight(1.2);
+      for (let i = 0; i < 10; i++) {
+        const a = (Math.PI * 2 / 10) * i;
+        const r1 = 12, r2 = 22 + (i % 3) * 7;
+        line(x + Math.cos(a)*r1, (y+12) + Math.sin(a)*r1*0.35,
+             x + Math.cos(a)*r2, (y+12) + Math.sin(a)*r2*0.35);
+      }
+      drawingContext.globalAlpha = 1;
+    }
+
+    if (!e.rising) this._drawBossHP(e, C.COL_MUMMY_BOSS);
+  },
+
   // Yellow shield bubble drawn under the enemy sprite
   _drawEnemyShield(e) {
     const x = e.pos.x, y = e.pos.y, r = e.radius + 12;
@@ -614,6 +852,7 @@ const Renderer = {
   },
 
   _drawEnemyHP(e, cx, topY) {
+    if (e.hp >= e.maxHp) return;   // hide until damage taken
     const bw = 30, bh = 4;
     noStroke(); fill('#111122');
     rect(cx - bw/2, topY, bw, bh);
@@ -622,13 +861,14 @@ const Renderer = {
     rect(cx - bw/2, topY, bw * frac, bh);
   },
 
-  _drawBossHP(boss) {
+  _drawBossHP(boss, accentCol) {
+    const col = accentCol || C.COL_BOSS;
     const bx = C.WIDTH / 2 - 150, by = C.HEIGHT - 30, bw = 300, bh = 10;
     noStroke(); fill('#111122'); rect(bx, by, bw, bh);
     const frac = boss.hp / boss.maxHp;
     fill(frac < 0.33 ? C.COL_BOSS : C.COL_HUD_HP_LOW);
     rect(bx, by, bw * frac, bh);
-    noFill(); stroke(C.COL_BOSS); strokeWeight(0.5); rect(bx, by, bw, bh);
+    noFill(); stroke(col); strokeWeight(0.5); rect(bx, by, bw, bh);
     noStroke(); fill(C.COL_HUD_TEXT); textSize(9); textAlign(CENTER, TOP);
     text(`BOSS  ${boss.hp} / ${boss.maxHp}`, C.WIDTH / 2, by + bh + 2);
   },
@@ -782,15 +1022,31 @@ const Renderer = {
     noStroke(); fill(C.COL_HUD_TEXT); textSize(10); textAlign(LEFT, TOP);
     text(`HP  ${p.hp} / ${p.maxHp}`, bx, by + bh + 3);
 
-    // Power-shot ammo counter
-    if (p.wideShots > 0) {
-      const ax = bx, ay = by + bh + 18;
-      noStroke(); fill(C.COL_WIDE_PICKUP); textSize(9); textAlign(LEFT, TOP);
-      text('POWER', ax, ay);
-      const bulW = 13, bulH = 6, gap = 3, startX = ax + 38;
-      for (let i = 0; i < p.wideShots; i++) {
-        noFill(); stroke(C.COL_WIDE_PICKUP); strokeWeight(1.5);
-        rect(startX + i * (bulW + gap), ay, bulW, bulH, 1);
+    // Powerup inventory slots — sit to the right of the HP bar, same height
+    {
+      const slotW = 44, slotH = 20, slotGap = 4;
+      const sx0 = bx + bw + 12, sy = by;
+      textFont('monospace');
+      for (let i = 0; i < 3; i++) {
+        const sx  = sx0 + i * (slotW + slotGap);
+        const pup = p.powerups[i];
+        const sel = i === p.powerupIdx;
+        noStroke(); fill('#111122'); rect(sx, sy, slotW, slotH, 2);
+        noFill();
+        stroke(sel ? '#ccccee' : '#333355'); strokeWeight(sel ? 1.5 : 0.8);
+        rect(sx, sy, slotW, slotH, 2);
+        if (pup) {
+          const col = pup === 'heal' ? C.COL_PICKUP : C.COL_WIDE_PICKUP;
+          noStroke(); fill(col); textSize(9); textAlign(CENTER, CENTER);
+          text(pup === 'heal' ? '+HP' : 'POWER', sx + slotW / 2, sy + slotH / 2);
+        }
+        noStroke(); fill(sel ? '#666677' : '#2a2a44'); textSize(7); textAlign(LEFT, TOP);
+        text(i + 1, sx + 2, sy + 1);
+      }
+      // Active power shots remaining (shown below slots)
+      if (p.wideShots > 0) {
+        noStroke(); fill(C.COL_WIDE_PICKUP); textSize(8); textAlign(LEFT, TOP);
+        text(`PWR ×${p.wideShots}`, sx0, sy + slotH + 2);
       }
     }
 
@@ -799,7 +1055,7 @@ const Renderer = {
     noStroke(); textAlign(RIGHT, TOP); textSize(11);
     fill(C.COL_HUD_TEXT);
     text(`FLOOR: ${G.floor}  DEPTH: ${room ? room.depth : 0}`, C.WIDTH - 20, 20);
-    const alive = G.enemies.filter(e => e.alive).length;
+    const alive = G.enemies.filter(e => e.alive).length + (G.flies ? G.flies.length : 0);
     fill(alive > 0 ? C.COL_HUD_TEXT : C.COL_DOOR_OPEN);
     text(`ENEMIES: ${alive}`, C.WIDTH - 20, 35);
 
@@ -833,14 +1089,28 @@ const Renderer = {
       drawingContext.globalAlpha = 1.0;
     }
 
-    // Treasure room hint
-    if (room && room.type === 'treasure' && room.pickupActive && !room.pickupTaken) {
-      noStroke(); fill(C.COL_PICKUP); textSize(11); textAlign(CENTER, BOTTOM);
-      text('Walk over the pickup to restore HP', C.WIDTH / 2, C.HEIGHT - 12);
+    // Pickup hint
+    if (room) {
+      const hasHeal  = room.pickupActive  && !room.pickupTaken;
+      const hasPower = room.widePowerupActive && !room.widePowerupTaken;
+      const hasMaxHp = room.maxhpPowerupActive && !room.maxhpPowerupTaken;
+      if (hasHeal || hasPower || hasMaxHp) {
+        noStroke(); textSize(11); textAlign(CENTER, BOTTOM);
+        if (hasMaxHp) {
+          fill(C.COL_MAXHP_PICKUP);
+          text('MAX HP UP — walk over to collect instantly', C.WIDTH / 2, C.HEIGHT - 12);
+        } else if (p.powerups.every(s => s !== null)) {
+          fill('#ff6644');
+          text('INVENTORY FULL — press SPC to use a powerup', C.WIDTH / 2, C.HEIGHT - 12);
+        } else {
+          fill(C.COL_PICKUP);
+          text('Walk into pickup to add to inventory', C.WIDTH / 2, C.HEIGHT - 12);
+        }
+      }
     }
 
     noStroke(); fill(C.COL_HUD_TEXT); textSize(9); textAlign(LEFT, BOTTOM);
-    text('M: map', 20, C.HEIGHT - 6);
+    text('M:map  Q:cycle  SPC:use', 20, C.HEIGHT - 6);
   },
 
   // ── Overlays ──────────────────────────────────────────────────────────
@@ -852,7 +1122,7 @@ const Renderer = {
     text('PAUSED', C.WIDTH / 2, C.HEIGHT / 2 - 22);
     textSize(14);
     fill(C.COL_HUD_TEXT);
-    text('P  to resume', C.WIDTH / 2, C.HEIGHT / 2 + 14);
+    text('any key or click to resume', C.WIDTH / 2, C.HEIGHT / 2 + 14);
     fill(C.COL_GAMEOVER);
     text('ESC  to quit to menu', C.WIDTH / 2, C.HEIGHT / 2 + 36);
   },
@@ -993,6 +1263,9 @@ const Renderer = {
       const isCurrent = room === G.currentRoom;
       const treasureTaken = room.type === 'treasure' && room.pickupTaken;
       const col = treasureTaken ? C.COL_DOOR_OPEN : (TYPE_COL[room.type] || C.COL_HUD_TEXT);
+      // Cleared rooms (not boss, not current) use a dim neutral outline
+      const borderCol = (room.cleared && room.type !== 'boss' && !isCurrent)
+        ? '#444466' : col;
 
       // Background fill
       noStroke(); fill('#12121c');
@@ -1005,7 +1278,7 @@ const Renderer = {
       }
 
       // Border
-      noFill(); stroke(col);
+      noFill(); stroke(borderCol);
       strokeWeight(room.type === 'boss' || isCurrent ? 2.5 : 1.5);
       rect(rx, ry, cellW, cellH, 3);
 
@@ -1048,6 +1321,8 @@ const Renderer = {
       { col: C.COL_LUNGE_GHOST, label: 'lunge ghost' },
       { col: C.COL_SKULL,    label: 'skull' },
       { col: C.COL_GHOUL,       label: 'ghoul'    },
+      { col: C.COL_LONG_GHOUL, label: 'long ghoul' },
+      { col: C.COL_MUMMY,     label: 'mummy'      },
       { col: '#ff9922',         label: 'mixed'    },
       { col: C.COL_BOSS,        label: 'boss'     },
       { col: C.COL_PICKUP,      label: 'treasure' },

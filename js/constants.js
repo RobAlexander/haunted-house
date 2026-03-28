@@ -111,8 +111,43 @@ const C = {
   GHOUL_LEAP_COOLDOWN_MIN: 60,
   GHOUL_LEAP_COOLDOWN_MAX: 140,
 
+  // Long Ghoul — scrunched body, 5 legs (one always longer), leaps far more often
+  LONG_GHOUL_HP:                100,
+  LONG_GHOUL_RADIUS:            14,
+  LONG_GHOUL_SPEED:             1.2,
+  LONG_GHOUL_LEAP_SPEED:        6.5,
+  LONG_GHOUL_LEAP_RANGE:        200,
+  LONG_GHOUL_CONTACT_DAMAGE:    40,
+  SCORE_LONG_GHOUL:             70,
+  LONG_GHOUL_LEAP_COOLDOWN_MIN: 20,
+  LONG_GHOUL_LEAP_COOLDOWN_MAX: 55,
+
+  // Mummy enemy — rises from tomb, releases flies
+  MUMMY_HP:             225,
+  MUMMY_RADIUS:         16,
+  MUMMY_SPEED:          0.85,
+  MUMMY_RISE_FRAMES:    180,    // 3 s to fully emerge; invulnerable during
+  MUMMY_FLY_COOLDOWN:   240,    // frames between fly releases
+  MUMMY_FLY_COUNT:      3,      // flies per release
+  MUMMY_CONTACT_DAMAGE: 25,
+  SCORE_MUMMY:          80,
+
+  // Mummy Boss — even-floor boss; phases like skull boss
+  MUMMY_BOSS_HP:        400,
+  MUMMY_BOSS_RADIUS:    28,
+  SCORE_MUMMY_BOSS:     200,
+
+  // Mummy Fly — tiny, pursue player, time out
+  FLY_HP:               5,
+  FLY_RADIUS:           4,
+  FLY_SPEED:            2.2,
+  FLY_LIFETIME:         420,    // ~7 s
+  FLY_CONTACT_DAMAGE:   8,
+  SCORE_FLY:            3,
+
   // Wide bullet powerup
   WIDE_BULLET_SHOTS:    8,
+  PICKUP_HEAL_AMOUNT: 40,
 
   // Floor difficulty scaling (floor 1 = baseline; scales linearly each floor above 1)
   FLOOR_SPEED_BONUS:         0.065,  // speed multiplier added per floor (floor 2 = 1.065×)
@@ -137,7 +172,12 @@ const C = {
   // New colors
   COL_LUNGE_GHOST: '#ff4455',
   COL_GHOUL:       '#7b3f1e',
+  COL_LONG_GHOUL:  '#c0c0d8',
+  COL_MUMMY:       '#c8b060',   // sandy/yellowed cloth
+  COL_MUMMY_BOSS:  '#e0a030',   // richer gold for the boss
+  COL_FLY:         '#44ff66',   // bright green flies
   COL_WIDE_PICKUP: '#44aaff',
+  COL_MAXHP_PICKUP: '#ffe066',
 
   COL_RAG_SYMBOL:      '#cc44ff',  // colour for R/A/G rune symbols
   RAG_SYMBOL_COLLECT_R: 20,        // collection radius in px

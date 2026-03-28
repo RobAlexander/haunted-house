@@ -9,6 +9,8 @@ class Player {
     this.invincibleFrames = 0;
     this.alive     = true;
     this.wideShots = 0;
+    this.powerups    = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|null)
+    this.powerupIdx  = 0;                 // currently selected slot
 
     // Sprite deformation — rerolled each game
     // Body: 8-point spline, mild radial variation on a 7.5×11 ellipse
@@ -34,6 +36,29 @@ class Player {
     };
     this.rearArmJoint  = _armJoint(3, 9,  6,  7, 3);   // shoulder → rear grip
     this.frontArmJoint = _armJoint(1, -9, 17, 7, 4);   // shoulder → front grip
+  }
+
+  addPowerup(type) {
+    const i = this.powerups.indexOf(null);
+    if (i === -1) return false;   // inventory full
+    this.powerups[i] = type;
+    return true;
+  }
+
+  cyclePowerup() {
+    this.powerupIdx = (this.powerupIdx + 1) % 3;
+  }
+
+  usePowerup() {
+    const type = this.powerups[this.powerupIdx];
+    if (!type) return;
+    if (type === 'heal') {
+      this.hp = Math.min(this.hp + C.PICKUP_HEAL_AMOUNT, this.maxHp);
+    } else if (type === 'power') {
+      this.wideShots = C.WIDE_BULLET_SHOTS;
+    }
+    this.powerups[this.powerupIdx] = null;
+    AudioEngine.playSFX('pickup');
   }
 
   update(keys, mx, my, room) {

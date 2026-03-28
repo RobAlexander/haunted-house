@@ -120,7 +120,7 @@ class DungeonGraph {
     if (deadEnds.length > 0) {
       const tr  = deadEnds[randInt(0, deadEnds.length - 1)];
       tr.type   = 'treasure';
-      tr.pickup = { x: C.WIDTH / 2, y: C.HEIGHT / 2, amount: 40 };
+      tr.pickup = { x: C.WIDTH / 2, y: C.HEIGHT / 2, amount: C.PICKUP_HEAL_AMOUNT };
       tr.cleared = true;
 
       // Possibly place wide-bullet powerup in a second dead-end
@@ -131,6 +131,15 @@ class DungeonGraph {
         wr.widePowerupActive = false;
         wr.widePowerupTaken  = false;
         wr.cleared           = true;
+      }
+      // Rarely place max-HP powerup in a third dead-end (instant collect, no inventory slot)
+      const remaining2 = remaining.filter(r => !r.widePowerup);
+      if (remaining2.length > 0 && Math.random() < 0.35) {
+        const mr = remaining2[randInt(0, remaining2.length - 1)];
+        mr.maxhpPowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+        mr.maxhpPowerupActive = false;
+        mr.maxhpPowerupTaken  = false;
+        mr.cleared            = true;
       }
     }
 
@@ -169,16 +178,37 @@ class DungeonGraph {
     }
     getFloorSymbols(G.floor).forEach((letter, i) => {
       if (i >= symbolPool.length) return;
-      symbolPool[i].ragSymbol = {
-        letter,
-        x:        C.WIDTH  / 2 + randFloat(-70, 70),
-        y:        C.HEIGHT / 2 + randFloat(-50, 50),
-        collected: false,
-        // Per-segment endpoint jitter [dx1,dy1,dx2,dy2] for each stroke
+      const room = symbolPool[i];
+      // Find a position not inside any obstacle (up to 60 attempts)
+      let sx = C.WIDTH / 2, sy = C.HEIGHT / 2;
+      for (let t = 0; t < 60; t++) {
+        const tx = C.WIDTH  / 2 + randFloat(-70, 70);
+        const ty = C.HEIGHT / 2 + randFloat(-50, 50);
+        let blocked = false;
+        for (const obs of room.obstacles) {
+          if (circleRectCollide(tx, ty, C.RAG_SYMBOL_COLLECT_R + 4, obs.x, obs.y, obs.w, obs.h)) {
+            blocked = true; break;
+          }
+        }
+        if (!blocked) { sx = tx; sy = ty; break; }
+      }
+      room.ragSymbol = {
+        letter, x: sx, y: sy, collected: false,
         segJitter: SYMBOL_GLYPHS[letter].map(() => [
           randFloat(-3, 3), randFloat(-2, 2), randFloat(-3, 3), randFloat(-2, 2),
         ]),
       };
     });
+
+    // Possibly place one mummy enemy marker in a random combat room (floor 2+)
+    if ((G.floor || 1) >= 2) {
+      const mummyChance = Math.min(0.50, 0.10 + ((G.floor || 1) - 2) * 0.10);
+      if (Math.random() < mummyChance) {
+        const mummyPool = nonStart.filter(r => r.type !== 'boss' && r.type !== 'treasure');
+        if (mummyPool.length > 0) {
+          mummyPool[randInt(0, mummyPool.length - 1)].hasMummy = true;
+        }
+      }
+    }
   }
 }

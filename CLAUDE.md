@@ -10,6 +10,8 @@ Open `index.html` directly in any modern browser to play.
 | WASD / Arrow keys | Move |
 | Mouse | Aim |
 | Left click (hold) | Shoot |
+| Space | Use selected powerup from inventory |
+| Q | Cycle to next inventory slot |
 | M | Toggle map (pauses game; visited rooms shown; fullmap mode shows all) |
 | N | Next floor (from win screen) |
 | P | Toggle pause |
@@ -29,6 +31,7 @@ Open `index.html` directly in any modern browser to play.
 | 6 | ✅ Done | Ghoul enemy, lunge ghosts, skull enemies, power-shot powerup, boss skull |
 | 7 | ✅ Done | Dev console, fullmap, dynamic resolution scaling, floor difficulty scaling |
 | 8 | ✅ Done | High score table (localStorage), name entry on death |
+| 9 | ✅ Done | Long Ghoul + Mummy enemies, Mummy Boss, fly swarm, powerup inventory system, max-HP powerup |
 
 ## File Map
 
@@ -41,7 +44,7 @@ js/state.js       — global G object, state machine, enterRoom(), transitions
 js/bullet.js      — 128-bullet object pool
 js/door.js        — getDoorCenter(), OPP_DIR
 js/rooms.js       — Room class + DungeonGraph procedural generation
-js/enemy.js       — GhostEnemy, SkullEnemy, GhoulEnemy, BossEnemy, spawnEnemies()
+js/enemy.js       — GhostEnemy, SkullEnemy, GhoulEnemy, LongGhoulEnemy, MummyEnemy, MummyBossEnemy, MummyFly, BossEnemy, spawnEnemies()
 js/player.js      — WASD movement, axis-separated collision, shooting
 js/audio.js       — AudioEngine: Web Audio API synth music + SFX, no audio files
 js/scores.js      — HighScores: localStorage top-5 table with name entry
@@ -68,8 +71,8 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | ghost | Ghosts (depth-scaled) | Depth 1–2 |
 | skull | Skulls + Ghouls | Depth 3–4 |
 | mixed | Ghosts + Skulls + Ghouls | Depth 5+ |
-| boss | Boss (1) | Deepest room; door physically locked until all floor symbols collected; stairwell opens on boss death |
-| treasure | none | Dead-end at depth ≥2; +40 HP pickup |
+| boss | Boss (1) | Deepest room; door physically locked until all floor symbols collected; stairwell opens on boss death. Skull boss on odd floors; Mummy boss on even floors. |
+| treasure | none | Dead-end at depth ≥2; +40 HP heal powerup (goes to inventory) |
 
 ## Enemy Types
 
@@ -79,7 +82,11 @@ MENU → (Enter / click) → PLAYING ⇄ PAUSED (P or Esc)
 | Lunge ghost | 30 | As ghost; brief 2.4× speed bursts every 60–140f | 15 | 10 |
 | Skull | 50 | Patrols; fires toward player every 60f | 10/bullet | 25 |
 | Ghoul | 50 | Slow crawl; leaps at 5.5× speed when in range | 40/contact | 35 |
-| Boss | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change | 20/bullet | 200 |
+| Long Ghoul | 100 | Like Ghoul but with 5 legs (one always longer), scrunched body, grey-white; leaps far more often (cooldown 20–55f) | 40/contact | 70 |
+| Mummy | 225 | Rises from tomb over 3s (invulnerable); then pursues slowly; periodically releases fly swarms; never on floor 1 | 25/contact | 80 |
+| Mummy Fly | 5 | Pursues player; individual droning sound; 7s lifetime; small—easier to avoid than shoot | 8/contact | 3 |
+| Boss (Skull) | 300 | 3-phase radial burst (4/8/12 bullets); speeds up each phase; 2s invulnerable on phase change; odd floors | 20/bullet | 200 |
+| Boss (Mummy) | 400 | Like skull boss (3 phases) but releases fly swarms each phase; even floors | 20/bullet | 200 |
 
 All enemy movement speeds and boss fire rate / bullet count scale with floor number (see `FLOOR_*` constants).
 Incoming player damage scales up 10% per floor with no cap (`FLOOR_DAMAGE_BONUS`).
@@ -98,6 +105,8 @@ Open with `` ` ``. Tab-completes commands.
 | `spawn_red_ghost` | Spawn a lunge ghost near player |
 | `spawn_skull` | Spawn a skull near player |
 | `spawn_ghoul` | Spawn a ghoul near player |
+| `spawn_long_ghoul` | Spawn a long ghoul near player |
+| `spawn_mummy` | Spawn a mummy near player |
 | `help` | List all commands |
 
 ## Architecture Notes
@@ -124,9 +133,13 @@ Open with `` ` ``. Tab-completes commands.
 - **Boss death explosion** — multi-wave particle burst (5 waves with staggered delays) plus 8 scattered fragments.
 - **Elite enemies** — each combat room (floor 2+) has a 20–30% chance of one enemy being designated elite: pulsing yellow shield (`e.shielded = true`), invulnerable until all non-shielded room-mates die. `checkEliteShield()` runs each frame; bullets break up on the shield (radius+12) the same way as the boss.
 - **Shield sparks** — `_spawnShieldSparks()` (bullet.js) pushes to `G.shieldSparks`; sparks decelerate and fade over ~15f, rendered as trailing yellow streaks by `drawShieldSparks()`.
-- **Music modes** — AudioEngine has three modes: normal (F# minor pentatonic, sawtooth drone at 55Hz), boss (half-speed melody, faster LFO), victory (C major pentatonic, triangle drone at 110Hz, open filter, 2–3× faster melody — starts on boss kill, stops when next floor begins).
+- **Music modes** — AudioEngine has four modes: normal (F# minor pentatonic, sawtooth drone at 55Hz), skull-boss (half-speed melody, faster LFO 2.4Hz, filter 400Hz), mummy-boss (MUMMY_SCALE chromatic/diminished, 40Hz drone, very slow LFO 0.55Hz, filter 110Hz, freq×0.25 — deep tomb-like), victory (C major pentatonic, triangle drone at 110Hz, open filter, 2–3× faster melody). `setBossMode(active, isMummy)` selects the right mode; `stopMusic()` resets all.
 - **Pause state** — `STATES.PAUSED` freezes game update but continues rendering. P key or Esc (while playing) enters pause; P resumes; Esc from pause goes to menu. Replaces old ESC-confirm flow.
 - **Focus swallow** — `_justFocused` flag prevents accidental shot when the window regains focus.
 - **High scores** — `HighScores` (scores.js) persists top-5 `{score, floor, name}` entries in localStorage. On death, `_beginEndSequence()` checks `qualifies()` and routes through `STATES.NAME_ENTRY` if so.
 - All SFX volumes exposed as `SFX_VOL_*` constants for easy tuning.
-- **Floor symbol system** — each floor has a set of 2–4 rune symbols to collect before the boss door opens. Floors 1–4 use fixed named sets (`RAG`, `OTR`, `NV`, `NTEM`); floor 5+ uses `getFloorSymbols(floor)` with a Mulberry32 seeded RNG (always deterministic for a given floor). Symbols are stick-figure glyphs defined in `SYMBOL_GLYPHS` (utils.js), placed in random non-start/non-boss/non-treasure rooms. `G.ragCollected` is keyed by the current floor's letters; `ragAllCollected()` checks all values. Visual: pulsing stick glyph with ghost-scatter copies; locked boss door shows letter progress (`·` for uncollected); HUD top-right shows per-letter status; map shows a tiny glyph in the room corner.
+- **Floor symbol system** — each floor has a set of 2–4 rune symbols to collect before the boss door opens. Floors 1–4 use fixed named sets (`RAG`, `OTR`, `NV`, `NTEM`); floor 5+ uses `getFloorSymbols(floor)` with a Mulberry32 seeded RNG (always deterministic for a given floor). Symbols are stick-figure glyphs defined in `SYMBOL_GLYPHS` (utils.js), placed in random non-start/non-boss/non-treasure rooms. Spawn uses up to 60 attempts with `circleRectCollide` to avoid placing symbols inside obstacles. `G.ragCollected` is keyed by the current floor's letters; `ragAllCollected()` checks all values. Visual: pulsing stick glyph with ghost-scatter copies; locked boss door shows letter progress (`·` for uncollected); HUD top-right shows per-letter status; map shows a tiny glyph in the room corner.
+- **Powerup inventory** — player has 3 inventory slots (`player.powerups[3]`). Big room pickups (heal +40HP, power shots) go to inventory via `addPowerup(type)` instead of triggering immediately. Space activates the selected slot; Q cycles (`cyclePowerup()`). HUD shows all 3 boxes right of the HP bar. Max-HP powerup is instant (walk-over): +20% maxHp + heals 20% of new maxHp; never goes to inventory. Powerups preserved across floors via `nextFloor()`.
+- **Mummy enemy** — `room.hasMummy` flag set in DungeonGraph; spawned by `spawnEnemies()` in addition to the room's normal enemies. Rises over `MUMMY_RISE_FRAMES` (180f) — invulnerable, drawing shifts down and fades in; ground cracks shown. After rising, pursues slowly and periodically releases fly swarms (`_releaseFlies()`). Floor 2+ only; probability `min(50%, 10%+(floor-2)×10%)`; at most 1 per floor.
+- **MummyFly** — lives in `G.flies[]` (separate from `G.enemies[]`) so flies don't block room-cleared detection. Per-fly `droneFreq` (90–170Hz); calls `AudioEngine.playFlyBuzz(freq)` every 80–160f. 420f (7s) lifetime, then disappears. Can be shot but very small (score 3 each).
+- **LongGhoul** — `_longGhoulChance()` = `min(80%, max(5%, (floor-1)×20%))`; substituted for regular Ghoul spawns. 5 legs (index 4 always 22–29px), scrunched body, grey-white color, 2× HP (100), leap cooldown 20–55f (vs 60–140f), plays `long_ghoul_leap` SFX.

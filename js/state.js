@@ -23,6 +23,7 @@ const G = {
   deathParticles: [],
   shieldSparks:   [],
   drops:          [],
+  flies:          [],
   ragCollected:   Object.fromEntries(getFloorSymbols(1).map(l => [l, false])),
   mapOpen:        false,
   newHighScore:    null,   // 1-based rank of last score, or null
@@ -43,6 +44,7 @@ function startGame() {
   G.deathParticles = [];
   G.shieldSparks   = [];
   G.drops          = [];
+  G.flies          = [];
   G.ragCollected = Object.fromEntries(getFloorSymbols(G.floor).map(l => [l, false]));
   G.mapOpen         = false;
   G.newHighScore     = null;
@@ -57,12 +59,21 @@ function startGame() {
 }
 
 function nextFloor() {
-  const savedHp    = G.player ? G.player.hp    : null;
-  const savedMaxHp = G.player ? G.player.maxHp : null;
-  const savedScore = G.score;
+  const savedHp         = G.player ? G.player.hp           : null;
+  const savedMaxHp      = G.player ? G.player.maxHp        : null;
+  const savedScore      = G.score;
+  const savedPowerups   = G.player ? [...G.player.powerups] : null;
+  const savedPowerupIdx = G.player ? G.player.powerupIdx   : 0;
+  const savedWideShots  = G.player ? G.player.wideShots    : 0;
   G.floor++;
   startGame();
-  if (savedHp !== null) { G.player.hp = savedHp; G.player.maxHp = savedMaxHp; }
+  if (savedHp !== null) {
+    G.player.hp         = savedHp;
+    G.player.maxHp      = savedMaxHp;
+    G.player.powerups   = savedPowerups;
+    G.player.powerupIdx = savedPowerupIdx;
+    G.player.wideShots  = savedWideShots;
+  }
   G.score = savedScore;
 }
 
@@ -72,6 +83,7 @@ function enterRoom(room, fromDir) {
   room.visited     = true;
   G.bullets        = new BulletPool();
   G.drops          = [];
+  G.flies          = [];
   G.shieldSparks   = [];
 
   // Compute player entry position first so spawn logic can exclude it
@@ -106,9 +118,15 @@ function enterRoom(room, fromDir) {
     room.widePowerupActive = true;
   }
 
+  // Max-HP powerup room
+  if (room.maxhpPowerup && !room.maxhpPowerupTaken) {
+    room.maxhpPowerupActive = true;
+  }
+
   // Audio: boss mode toggle + room enter SFX
   if (fromDir !== null) AudioEngine.playSFX('room_enter');
-  AudioEngine.setBossMode(room.type === 'boss');
+  const isMummyBoss = room.type === 'boss' && G.enemies.some(e => e.type === 'mummy_boss');
+  AudioEngine.setBossMode(room.type === 'boss', isMummyBoss);
   if (room.type === 'boss' && firstVisit) AudioEngine.playSFX('boss_enter');
 }
 
@@ -204,7 +222,7 @@ function checkPickup() {
   const pick = room.pickup;
   if (!pick) return;
   if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, pick.x, pick.y, 14)) {
-    G.player.hp = Math.min(G.player.hp + pick.amount, G.player.maxHp);
+    if (!G.player.addPowerup('heal')) return;   // inventory full — don't consume
     room.pickupTaken  = true;
     room.pickupActive = false;
     AudioEngine.playSFX('pickup');
@@ -216,9 +234,22 @@ function checkWidePowerup() {
   if (!room || !room.widePowerupActive || room.widePowerupTaken) return;
   const p = room.widePowerup;
   if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, p.x, p.y, 14)) {
-    G.player.wideShots      = C.WIDE_BULLET_SHOTS;
+    if (!G.player.addPowerup('power')) return;  // inventory full — don't consume
     room.widePowerupTaken   = true;
     room.widePowerupActive  = false;
+    AudioEngine.playSFX('pickup');
+  }
+}
+
+function checkMaxHpPowerup() {
+  const room = G.currentRoom;
+  if (!room || !room.maxhpPowerupActive || room.maxhpPowerupTaken) return;
+  const p = room.maxhpPowerup;
+  if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, p.x, p.y, 14)) {
+    G.player.maxHp = Math.round(G.player.maxHp * 1.20);
+    G.player.hp    = Math.min(G.player.hp + Math.round(G.player.maxHp * 0.20), G.player.maxHp);
+    room.maxhpPowerupTaken  = true;
+    room.maxhpPowerupActive = false;
     AudioEngine.playSFX('pickup');
   }
 }

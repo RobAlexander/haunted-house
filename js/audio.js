@@ -17,7 +17,8 @@ const AudioEngine = (() => {
   let lfo        = null;
   let lfoGain    = null;
   let melodyTimeout = null;
-  let bossMode   = false;
+  let bossMode      = false;
+  let mummyBossMode = false;
 
   // ── Init ────────────────────────────────────────────────────────────────
 
@@ -96,9 +97,10 @@ const AudioEngine = (() => {
 
   function stopMusic() {
     if (!musicRunning) return;
-    musicRunning = false;
-    bossMode     = false;
-    victoryMode  = false;
+    musicRunning  = false;
+    bossMode      = false;
+    mummyBossMode = false;
+    victoryMode   = false;
 
     clearTimeout(melodyTimeout);
     melodyTimeout = null;
@@ -156,21 +158,43 @@ const AudioEngine = (() => {
     _scheduleMelodyNote();
   }
 
-  function setBossMode(active) {
+  function setBossMode(active, isMummy) {
     if (!ctx || !lfo) return;
-    bossMode = active;
-    lfo.frequency.setTargetAtTime(active ? 2.4 : 1.2, ctx.currentTime, 0.5);
-    droneFilter.frequency.setTargetAtTime(active ? 400 : 220, ctx.currentTime, 1.0);
+    bossMode      = active;
+    mummyBossMode = active && !!isMummy;
+    if (active && isMummy) {
+      // Mummy boss: very deep, slow drone — tomb-like
+      lfo.frequency.setTargetAtTime(0.55, ctx.currentTime, 0.8);
+      droneFilter.frequency.setTargetAtTime(110, ctx.currentTime, 1.5);
+      drone1.frequency.setTargetAtTime(40,   ctx.currentTime, 2.0);
+      drone2.frequency.setTargetAtTime(40.4, ctx.currentTime, 2.0);
+    } else if (active) {
+      // Skull boss: faster LFO, brighter filter
+      lfo.frequency.setTargetAtTime(2.4, ctx.currentTime, 0.5);
+      droneFilter.frequency.setTargetAtTime(400, ctx.currentTime, 1.0);
+      drone1.frequency.setTargetAtTime(55,   ctx.currentTime, 1.0);
+      drone2.frequency.setTargetAtTime(55.5, ctx.currentTime, 1.0);
+    } else {
+      // Normal: restore defaults
+      lfo.frequency.setTargetAtTime(1.2, ctx.currentTime, 0.5);
+      droneFilter.frequency.setTargetAtTime(220, ctx.currentTime, 1.0);
+      drone1.frequency.setTargetAtTime(55,   ctx.currentTime, 1.0);
+      drone2.frequency.setTargetAtTime(55.5, ctx.currentTime, 1.0);
+    }
   }
 
-  // F# minor pentatonic (eerie — normal + boss)
+  // F# minor pentatonic (eerie — normal + skull boss)
   const PENTATONIC  = [185, 220, 247, 277, 370, 440, 494, 554];
   // C major pentatonic (bright — post-boss victory)
   const MAJOR_PENT  = [261, 329, 392, 440, 523, 659, 784];
+  // D diminished / chromatic (dark, dissonant — mummy boss)
+  const MUMMY_SCALE = [146, 155, 174, 196, 207, 233, 277, 311];
 
   function _scheduleMelodyNote() {
     if (!musicRunning) return;
-    const delay = victoryMode ? 900 + Math.random() * 2200 : 2000 + Math.random() * 6000;
+    const delay = victoryMode    ? 900  + Math.random() * 2200
+                : mummyBossMode  ? 3500 + Math.random() * 8000
+                :                  2000 + Math.random() * 6000;
     melodyTimeout = setTimeout(() => {
       if (!musicRunning) return;
       _playMelodyNote();
@@ -180,17 +204,22 @@ const AudioEngine = (() => {
 
   function _playMelodyNote() {
     if (!ctx) return;
-    const scale  = victoryMode ? MAJOR_PENT : PENTATONIC;
+    const scale  = victoryMode   ? MAJOR_PENT
+                 : mummyBossMode ? MUMMY_SCALE
+                 :                 PENTATONIC;
     const freq   = scale[Math.floor(Math.random() * scale.length)];
-    const type   = Math.random() < 0.5 ? 'sine' : 'triangle';
+    const type   = mummyBossMode ? 'sawtooth' : Math.random() < 0.5 ? 'sine' : 'triangle';
     const now    = ctx.currentTime;
-    const dur    = victoryMode ? 0.18 + Math.random() * 0.28 : 0.4 + Math.random() * 0.4;
-    const vol    = victoryMode ? 0.09 : 0.06;
+    const dur    = victoryMode    ? 0.18 + Math.random() * 0.28
+                 : mummyBossMode  ? 0.8  + Math.random() * 1.2
+                 :                  0.4  + Math.random() * 0.4;
+    const vol    = victoryMode ? 0.09 : mummyBossMode ? 0.045 : 0.06;
 
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type            = type;
-    osc.frequency.value = freq * (bossMode ? 0.5 : 1);
+    // Skull boss: half-pitch; mummy boss: quarter-pitch (very low, ominous)
+    osc.frequency.value = freq * (mummyBossMode ? 0.25 : bossMode ? 0.5 : 1);
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(vol, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
@@ -213,7 +242,10 @@ const AudioEngine = (() => {
       case 'room_enter': _sfxRoomEnter(now); break;
       case 'pickup':     _sfxPickup(now);    break;
       case 'ghost_lunge': _sfxGhostLunge(now); break;
-      case 'ghoul_leap':  _sfxGhoulLeap(now);  break;
+      case 'ghoul_leap':       _sfxGhoulLeap(now);      break;
+      case 'long_ghoul_leap':  _sfxLongGhoulLeap(now);  break;
+      case 'mummy_awaken':     _sfxMummyAwaken(now);    break;
+      case 'mummy_flies':      _sfxMummyFlies(now);     break;
       case 'boss_enter':  _sfxBossEnter(now);  break;
       case 'boss_phase':  _sfxBossPhase(now);  break;
       case 'game_over':   _sfxGameOver(now);   break;
@@ -540,6 +572,133 @@ const AudioEngine = (() => {
     osc2.start(now + 0.03); osc2.stop(now + 0.4);
   }
 
+  function _sfxLongGhoulLeap(now) {
+    // Main squeal: higher and more shrill than regular ghoul — starts sharp, rockets higher, drops nastily
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.linearRampToValueAtTime(1750, now + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(850, now + 0.35);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.18, now + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    osc.connect(g); g.connect(master);
+    osc.start(now); osc.stop(now + 0.40);
+
+    // Rapid tremolo layer: faster LFO and higher frequency range than ghoul
+    const osc2  = ctx.createOscillator();
+    const lfo   = ctx.createOscillator();
+    const lfoG  = ctx.createGain();
+    const g2    = ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(1100, now + 0.02);
+    osc2.frequency.linearRampToValueAtTime(2100, now + 0.12);
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(55, now);
+    lfoG.gain.setValueAtTime(0.09, now);
+    lfo.connect(lfoG); lfoG.connect(g2.gain);
+    g2.gain.setValueAtTime(0.001, now + 0.02);
+    g2.gain.linearRampToValueAtTime(0.12, now + 0.08);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+    osc2.connect(g2); g2.connect(reverb);
+    lfo.start(now); lfo.stop(now + 0.35);
+    osc2.start(now + 0.02); osc2.stop(now + 0.35);
+
+    // Piercing high screech — extra nastiness layer
+    const osc3 = ctx.createOscillator();
+    const g3   = ctx.createGain();
+    osc3.type = 'sawtooth';
+    osc3.frequency.setValueAtTime(2400, now);
+    osc3.frequency.linearRampToValueAtTime(3200, now + 0.05);
+    osc3.frequency.exponentialRampToValueAtTime(1800, now + 0.25);
+    g3.gain.setValueAtTime(0.001, now);
+    g3.gain.linearRampToValueAtTime(0.06, now + 0.03);
+    g3.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    osc3.connect(g3); g3.connect(master);
+    osc3.start(now); osc3.stop(now + 0.30);
+  }
+
+  function _sfxMummyAwaken(now) {
+    // Deep, tomb-resonant groan as the mummy fully rises — low sawtooth rumble + pitched shriek
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(55, now);
+    osc.frequency.linearRampToValueAtTime(90, now + 0.5);
+    osc.frequency.exponentialRampToValueAtTime(45, now + 1.8);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.22, now + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+    osc.connect(g); g.connect(reverb);
+    osc.start(now); osc.stop(now + 2.1);
+
+    // Mid harmonic layer — old dry cloth / creak
+    const osc2 = ctx.createOscillator();
+    const g2   = ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(220, now + 0.3);
+    osc2.frequency.linearRampToValueAtTime(180, now + 1.2);
+    g2.gain.setValueAtTime(0.001, now + 0.3);
+    g2.gain.linearRampToValueAtTime(0.08, now + 0.5);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+    osc2.connect(g2); g2.connect(reverb);
+    osc2.start(now + 0.3); osc2.stop(now + 1.5);
+  }
+
+  function _sfxMummyFlies(now) {
+    // Wet, fluttery release — brief burst of noise + buzzy rattle
+    const bufSize = ctx.sampleRate * 0.18;
+    const buf     = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data    = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const bpf = ctx.createBiquadFilter();
+    bpf.type = 'bandpass'; bpf.frequency.value = 800; bpf.Q.value = 0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.12, now + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    src.connect(bpf); bpf.connect(g); g.connect(master);
+    src.start(now); src.stop(now + 0.25);
+
+    // Short low buzz accent
+    const osc = ctx.createOscillator();
+    const g2  = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(160, now);
+    osc.frequency.linearRampToValueAtTime(120, now + 0.15);
+    g2.gain.setValueAtTime(0.001, now);
+    g2.gain.linearRampToValueAtTime(0.09, now + 0.04);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(g2); g2.connect(reverb);
+    osc.start(now); osc.stop(now + 0.20);
+  }
+
+  // Called directly (not via playSFX) with per-fly random frequency
+  function playFlyBuzz(freq) {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const lfoO = ctx.createOscillator();
+    const lfoG = ctx.createGain();
+    const g    = ctx.createGain();
+    osc.type  = 'square';
+    osc.frequency.value = freq;
+    // Fast AM flutter — insect wing beat
+    lfoO.type = 'sine';
+    lfoO.frequency.value = 38 + Math.random() * 22;
+    lfoG.gain.value = freq * 0.35;
+    lfoO.connect(lfoG); lfoG.connect(osc.frequency);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.04, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc.connect(g); g.connect(reverb);
+    lfoO.start(now); lfoO.stop(now + 0.25);
+    osc.start(now);  osc.stop(now + 0.25);
+  }
+
   // Slow descending minor chord
   function _sfxGameOver(now) {
     const minor = [220, 261, 311];
@@ -592,5 +751,5 @@ const AudioEngine = (() => {
 
   // ── Public API ───────────────────────────────────────────────────────────
 
-  return { init, startMusic, stopMusic, startVictoryMusic, setBossMode, playSFX };
+  return { init, startMusic, stopMusic, startVictoryMusic, setBossMode, playSFX, playFlyBuzz };
 })();
