@@ -32,6 +32,7 @@ Open `index.html` directly in any modern browser to play.
 | 7 | ✅ Done | Dev console, fullmap, dynamic resolution scaling, floor difficulty scaling |
 | 8 | ✅ Done | High score table (localStorage), name entry on death |
 | 9 | ✅ Done | Long Ghoul + Mummy enemies, Mummy Boss, fly swarm, powerup inventory system, max-HP powerup |
+| 10 | ✅ Done | Nuckelavee enemy (aura damage + toxic breath particles), boss death clears minions/flies, max-HP fanfare SFX, drop rate tuning |
 
 ## File Map
 
@@ -44,7 +45,7 @@ js/state.js       — global G object, state machine, enterRoom(), transitions
 js/bullet.js      — 128-bullet object pool
 js/door.js        — getDoorCenter(), OPP_DIR
 js/rooms.js       — Room class + DungeonGraph procedural generation
-js/enemy.js       — GhostEnemy, SkullEnemy, GhoulEnemy, LongGhoulEnemy, MummyEnemy, MummyBossEnemy, MummyFly, BossEnemy, spawnEnemies()
+js/enemy.js       — GhostEnemy, SkullEnemy, WhiteSkullEnemy, GhoulEnemy, LongGhoulEnemy, NuckelaveeEnemy, MummyEnemy, MummyBossEnemy, MummyFly, BossEnemy, spawnEnemies()
 js/player.js      — WASD movement, axis-separated collision, shooting
 js/audio.js       — AudioEngine: Web Audio API synth music + SFX, no audio files
 js/scores.js      — HighScores: localStorage top-5 table with name entry
@@ -110,6 +111,7 @@ Open with `` ` ``. Tab-completes commands.
 | `spawn_long_ghoul` | Spawn a long ghoul near player |
 | `spawn_mummy` | Spawn a mummy near player |
 | `spawn_nuckelavee` | Spawn a nuckelavee near player |
+| `spawn_maxhp` | Spawn a max-HP powerup 40px right of the player |
 | `help` | List all commands |
 
 ## Architecture Notes
@@ -129,7 +131,7 @@ Open with `` ` ``. Tab-completes commands.
 - GhoulEnemy: crawls slowly then leaps at `GHOUL_LEAP_SPEED` when within `GHOUL_LEAP_RANGE`; appears in skull and mixed rooms.
 - **Floor difficulty scaling** — `_floorMult(bonus, cap)` in enemy.js computes a linear ramp capped at `cap`; stored on each enemy at spawn as `speedMult` (and `firerateMult`/`bulletMult` for boss). `setfloor` console command patches live enemies and reports speed + damage multipliers.
 - **Incoming damage scaling** — `player.takeDamage()` multiplies all damage by `1 + (floor-1) × FLOOR_DAMAGE_BONUS` (10%/floor, no cap).
-- **Drop rate scaling** — enemy heal-drop probability (`DROP_CHANCE`, base 40%) scales inversely with the dungeon's actual average enemies per combat room (`G.dungeon.avgEnemiesPerRoom`, computed after generation), keeping expected drops per room constant across floors. Drop amount per pickup is fixed at `DROP_HEAL_AMOUNT`.
+- **Drop rate scaling** — enemy heal-drop probability (`DROP_CHANCE`, base 20%) scales inversely with the dungeon's actual average enemies per combat room (`G.dungeon.avgEnemiesPerRoom`, computed after generation), keeping expected drops per room constant across floors. Drop amount per pickup is fixed at `DROP_HEAL_AMOUNT`.
 - **HP preserved across floors** — `nextFloor()` saves and restores `player.hp`/`maxHp` and `G.score` so progression carries over.
 - **Per-instance deformation** — Ghosts use `deform[6]` for organic silhouette variation; Skulls use `deform[5]` + `headPts[7]` (pre-computed irregular spline vertices); Ghouls use `bodyPts[10]` (irregular spline) + `legs[4]` (jointed legs with variable joint count 1–4); Boss `deform[8]` for skull vertex offsets; Player uses `bodyPts`/`headPts` splines with jointed arms; Rune symbols use `segJitter[N][4]` (per-segment endpoint offsets [dx1,dy1,dx2,dy2]) for unique stick-glyph deformation.
 - **Boss phase transition** — on entering phase 2 or 3, boss becomes invulnerable for `BOSS_PHASE_TRANSITION_FRAMES` (120f = 2s), glows yellow, and plays the `boss_phase` SFX. `transitionTimer` tracked on the boss instance. Bullets intercept at the shield radius (`e.radius + 18`) with spark break-up; never reach the body.
@@ -148,4 +150,7 @@ Open with `` ` ``. Tab-completes commands.
 - **LongGhoul** — `_longGhoulChance()` = `min(80%, max(5%, (floor-1)×20%))`; substituted for regular Ghoul spawns. 5 legs (index 4 always 22–29px), scrunched body, grey-white color, 2× HP (100), leap cooldown 20–55f (vs 60–140f), plays `long_ghoul_leap` SFX.
 - **WhiteSkull** — `_whiteSkullChance()` = 0 below floor 3, then `min(60%, 20%+(floor-3)×20%)`; at most 1 per room. Fires weaving bullets (`BulletPool.fireWeaving()`) with sinusoidal arc; also fires 8-bullet scatter burst (reuses boss_fire SFX). Scatter probability: 75% when player dist < `WHITE_SKULL_NEAR_RANGE` (100px), else 20%. Near-white/blue-tinted colour with glow ring.
 - **Weaving bullets** — `Bullet.weave = { baseAngle, speed, freq, maxDev, age }`. Each frame in `BulletPool.update()`, if `b.weave` set: `dev = sin(age * freq) * maxDev`, velocity recomputed as `(cos(baseAngle+dev), sin(baseAngle+dev)) * speed`. Cleared on deactivate/refire.
-- **Boss spiral attack** — phase 3 only; 35% chance to trigger instead of regular burst when `fireTimer` expires. Fires `BOSS_SPIRAL_BULLETS` (18) bullets one per `BOSS_SPIRAL_INTERVAL` (3) frames, rotating angle by `BOSS_SPIRAL_ROT` (0.75 rad) each bullet (~2.1 full rotations). `spiralActive` flag prevents overlapping spirals. Visual: 4 rotating arm lines at `e.spiralAngle`.
+- **Boss spiral attack** — phase 3 only; 35% chance to trigger instead of regular burst when `fireTimer` expires. Fires `BOSS_SPIRAL_BULLETS` (18) bullets one per `BOSS_SPIRAL_INTERVAL` (3) frames, rotating angle by `BOSS_SPIRAL_ROT` (0.75 rad) each bullet (~2.1 full rotations). `spiralActive` flag prevents overlapping spirals. Visual: 4 rotating arm lines at `e.spiralAngle`. Per-arm angle jitter `±0.38 rad`, per-bullet speed variation `0.82–1.20×`, per-step rotation variation `0.65–1.40×` give organic jagged arms.
+- **Boss minion cleanup** — `_clearBossMinions()` called on boss death: sets `alive = false` on every enemy with `bossMinion = true` (tagged at spawn), and clears `G.flies` entirely. Applies to both skull boss and mummy boss.
+- **Nuckelavee** — `_nuckelaveeChance()` = 25% from floor 2; one per skull/mixed room. Emits a toxic breath cloud: per-instance `breathParticles[]` (max ~20 live), each spawned every 2 frames within the 65px aura radius, drifting with slow random walk, rendered as `COL_FLY` (#44ff66) circles with fade-in/out alpha. Aura also deals 1 HP per 6-frame tick (gated by player invincibility frames).
+- **Max-HP fanfare** — `_sfxMaxhpFanfare()`: 5-note triangle-wave ascending run (C major pentatonic, 90ms spacing) → sustained C major chord bloom (sine, reverb tail) → high sine sparkle sweep 2093→3136 Hz. Replaces generic `pickup` SFX on max-HP collection.
