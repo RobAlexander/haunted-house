@@ -20,7 +20,7 @@ const Renderer = {
     }
 
     this.drawRoom(G.currentRoom);
-    this.drawNuckelaveeTrail(G.enemies);
+    this.drawDemonTrail(G.enemies);
     this.drawPickup(G.currentRoom);
     this.drawWidePowerup(G.currentRoom);
     this.drawMaxHpPowerup(G.currentRoom);
@@ -397,11 +397,11 @@ const Renderer = {
     text('AUTOFIRE', p.x, p.y + 22);
   },
 
-  drawNuckelaveeTrail(enemies) {
+  drawDemonTrail(enemies) {
     if (!enemies) return;
     noStroke();
     for (const e of enemies) {
-      if (!e.alive || e.type !== 'nuckelavee' || !e.trailParticles) continue;
+      if (!e.alive || e.type !== 'demon' || !e.trailParticles) continue;
       for (const tp of e.trailParticles) {
         const frac = tp.life / tp.maxLife;
         // Fade in first 15%, hold, fade out last 40%
@@ -506,7 +506,7 @@ const Renderer = {
       if (e.type === 'ghoul_boss')  this._drawGhoulBoss(e);
       if (e.type === 'ghoul')       this._drawGhoul(e);
       if (e.type === 'long_ghoul')  this._drawLongGhoul(e);
-      if (e.type === 'nuckelavee')  this._drawNuckelavee(e);
+      if (e.type === 'demon')  this._drawDemon(e);
       if (e.type === 'mummy')      this._drawMummy(e);
       if (e.type === 'mummy_boss') this._drawMummyBoss(e);
     }
@@ -816,10 +816,10 @@ const Renderer = {
     this._drawEnemyHP(e, x, y - r - 8);
   },
 
-  _drawNuckelavee(e) {
+  _drawDemon(e) {
     const x = e.pos.x, y = e.pos.y;
-    const col  = C.COL_NUCKELAVEE;
-    const vein = C.COL_NUCKELAVEE_VEIN;
+    const col  = C.COL_DEMON;
+    const vein = C.COL_DEMON_VEIN;
     const hw = 22, hh = 11;   // horse body half-width, half-height
 
     // Toxic breath cloud — green wisps drifting through the aura zone
@@ -1748,7 +1748,7 @@ const Renderer = {
       { col: C.COL_WHITE_SKULL, label: 'white skull' },
       { col: C.COL_GHOUL,        label: 'ghoul'      },
       { col: C.COL_LONG_GHOUL,  label: 'long ghoul' },
-      { col: C.COL_NUCKELAVEE,  label: 'nuckelavee' },
+      { col: C.COL_DEMON,  label: 'demon' },
       { col: C.COL_MUMMY,       label: 'mummy'      },
       { col: '#ff9922',         label: 'mixed'      },
       { col: C.COL_BOSS,        label: 'boss (skull)'  },

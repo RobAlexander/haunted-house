@@ -161,7 +161,7 @@ function mouseReleased() {
 
 const DEV_COMMANDS = [
   'boss', 'fullmap', 'help', 'powerup', 'setfloor', 'spawn_maxhp',
-  'spawn_ghost', 'spawn_ghoul', 'spawn_ghoul_boss', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_nuckelavee', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
+  'spawn_ghost', 'spawn_ghoul', 'spawn_ghoul_boss', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_demon', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
 function _devSpawn(EnemyClass, overrides) {
@@ -242,7 +242,7 @@ function _execDevCommand(cmd) {
     const damageMult = 1 + (f-1)*C.FLOOR_DAMAGE_BONUS;
     return `Floor set to ${f} (speed ×${speedMult.toFixed(2)}, damage ×${damageMult.toFixed(2)}).`;
   }
-  if (cmd === 'spawn_nuckelavee') return _devSpawn(NuckelaveeEnemy);
+  if (cmd === 'spawn_demon') return _devSpawn(DemonEnemy);
   if (cmd === 'spawn_maxhp') {
     if (G.state !== STATES.PLAYING) return 'Start a game first.';
     const room = G.currentRoom;

@@ -330,17 +330,17 @@ class LongGhoulEnemy {
   }
 }
 
-// ── Nuckelavee ────────────────────────────────────────────────────────────
+// ── Demon ────────────────────────────────────────────────────────────
 
-class NuckelaveeEnemy {
+class DemonEnemy {
   constructor(x, y) {
     this.pos             = { x, y };
     this.vel             = { x: 0, y: 0 };
-    this.hp              = C.NUCKELAVEE_HP;
-    this.maxHp           = C.NUCKELAVEE_HP;
-    this.radius          = C.NUCKELAVEE_RADIUS;
-    this.type            = 'nuckelavee';
-    this.scoreValue      = C.SCORE_NUCKELAVEE;
+    this.hp              = C.DEMON_HP;
+    this.maxHp           = C.DEMON_HP;
+    this.radius          = C.DEMON_RADIUS;
+    this.type            = 'demon';
+    this.scoreValue      = C.SCORE_DEMON;
     this.alive           = true;
     this.contactCooldown = 0;
     this.auraCooldown    = 0;
@@ -374,8 +374,8 @@ class NuckelaveeEnemy {
 
     // Slow relentless pursuit
     const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
-    this.vel.x = n.x * C.NUCKELAVEE_SPEED * this.speedMult;
-    this.vel.y = n.y * C.NUCKELAVEE_SPEED * this.speedMult;
+    this.vel.x = n.x * C.DEMON_SPEED * this.speedMult;
+    this.vel.y = n.y * C.DEMON_SPEED * this.speedMult;
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
     this._resolveCollisions(room);
@@ -384,7 +384,7 @@ class NuckelaveeEnemy {
     this.breathSpawnTimer--;
     if (this.breathSpawnTimer <= 0) {
       const a = randFloat(0, Math.PI * 2);
-      const d = randFloat(0, C.NUCKELAVEE_AURA_RADIUS * 0.9);
+      const d = randFloat(0, C.DEMON_AURA_RADIUS * 0.9);
       const outSpd = randFloat(0.15, 0.55);
       const maxL   = randInt(28, 55);
       this.breathParticles.push({
@@ -415,11 +415,11 @@ class NuckelaveeEnemy {
         y: this.pos.y + randFloat(-8, 8),
         vx: randFloat(-0.25, 0.25),
         vy: randFloat(-0.35, 0.0),  // drift slightly upward
-        life: C.NUCKELAVEE_TRAIL_LIFETIME,
-        maxLife: C.NUCKELAVEE_TRAIL_LIFETIME,
+        life: C.DEMON_TRAIL_LIFETIME,
+        maxLife: C.DEMON_TRAIL_LIFETIME,
         size: randFloat(4, 9),
       });
-      this.trailSpawnTimer = C.NUCKELAVEE_TRAIL_INTERVAL;
+      this.trailSpawnTimer = C.DEMON_TRAIL_INTERVAL;
     }
     for (let i = this.trailParticles.length - 1; i >= 0; i--) {
       const tp = this.trailParticles[i];
@@ -434,28 +434,28 @@ class NuckelaveeEnemy {
     if (this.trailDamageCooldown === 0) {
       for (const tp of this.trailParticles) {
         if (circleDist(player.pos.x, player.pos.y, tp.x, tp.y) < player.radius + tp.size) {
-          player.takeDamage(C.NUCKELAVEE_TRAIL_DAMAGE);
-          this.trailDamageCooldown = C.NUCKELAVEE_TRAIL_DAMAGE_INTERVAL;
+          player.takeDamage(C.DEMON_TRAIL_DAMAGE);
+          this.trailDamageCooldown = C.DEMON_TRAIL_DAMAGE_INTERVAL;
           break;
         }
       }
     }
 
-    // Aura damage — tick every NUCKELAVEE_AURA_INTERVAL frames when player close
+    // Aura damage — tick every DEMON_AURA_INTERVAL frames when player close
     if (this.auraCooldown > 0) this.auraCooldown--;
     if (this.auraCooldown === 0) {
       const dist = circleDist(this.pos.x, this.pos.y, player.pos.x, player.pos.y);
-      if (dist < C.NUCKELAVEE_AURA_RADIUS + player.radius) {
-        player.takeDamage(C.NUCKELAVEE_AURA_DAMAGE);
+      if (dist < C.DEMON_AURA_RADIUS + player.radius) {
+        player.takeDamage(C.DEMON_AURA_DAMAGE);
       }
-      this.auraCooldown = C.NUCKELAVEE_AURA_INTERVAL;
+      this.auraCooldown = C.DEMON_AURA_INTERVAL;
     }
 
     // Body contact — heavier hit
     if (this.contactCooldown > 0) this.contactCooldown--;
     if (this.contactCooldown === 0 &&
         circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
-      player.takeDamage(C.NUCKELAVEE_CONTACT_DAMAGE);
+      player.takeDamage(C.DEMON_CONTACT_DAMAGE);
       this.contactCooldown = C.GHOST_CONTACT_COOLDOWN;
     }
   }
@@ -836,7 +836,7 @@ function _spawnDeathFX(enemy) {
   const col = enemy.type === 'ghost'       ? (enemy.variant === 'lunge' ? C.COL_LUNGE_GHOST : '#cc88ff')
             : enemy.type === 'ghoul'       ? C.COL_GHOUL
             : enemy.type === 'long_ghoul'  ? C.COL_LONG_GHOUL
-            : enemy.type === 'nuckelavee'  ? C.COL_NUCKELAVEE
+            : enemy.type === 'demon'  ? C.COL_DEMON
             : enemy.type === 'mummy'       ? C.COL_MUMMY
             : enemy.type === 'mummy_boss'  ? C.COL_MUMMY_BOSS
             : enemy.type === 'white_skull' ? C.COL_WHITE_SKULL
@@ -925,7 +925,7 @@ class MummyFly {
     if (this.contactCooldown === 0 &&
         circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
       player.takeDamage(C.FLY_CONTACT_DAMAGE);
-      this.contactCooldown = C.GHOST_CONTACT_COOLDOWN;
+      this.takeDamage(this.hp);
     }
 
     // Periodic droning buzz
@@ -1453,19 +1453,19 @@ function _longGhoulChance() {
   return Math.min(0.80, Math.max(0.05, (G.floor - 1) * 0.20));
 }
 
-// Nuckelavee: 0 on floor 1, ~25% from floor 2, capped at 30%. One per room maximum.
-function _nuckelaveeChance() {
+// Demon: 0 on floor 1, ~25% from floor 2, capped at 30%. One per room maximum.
+function _demonChance() {
   if ((G.floor || 1) < 2) return 0;
   return Math.min(0.30, 0.25);
 }
 
-function spawnNuckelavee(room, px, py) {
+function spawnDemon(room, px, py) {
   const z = _spawnZone(room);
   for (let i = 0; i < 30; i++) {
     const x = randFloat(z.minX, z.maxX);
     const y = randFloat(z.minY, z.maxY);
-    if (_validPos(x, y, C.NUCKELAVEE_RADIUS, room, 130, px, py))
-      return [new NuckelaveeEnemy(x, y)];
+    if (_validPos(x, y, C.DEMON_RADIUS, room, 130, px, py))
+      return [new DemonEnemy(x, y)];
   }
   return [];
 }
@@ -1507,12 +1507,12 @@ function spawnEnemies(room, px, py) {
   else if (room.type === 'skull') {
     const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
     const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
-    const nk = Math.random() < _nuckelaveeChance() ? spawnNuckelavee(room, px, py)  : [];
+    const nk = Math.random() < _demonChance() ? spawnDemon(room, px, py)  : [];
     enemies = [...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws, ...nk];
   } else if (room.type === 'mixed') {
     const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
     const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
-    const nk = Math.random() < _nuckelaveeChance() ? spawnNuckelavee(room, px, py)  : [];
+    const nk = Math.random() < _demonChance() ? spawnDemon(room, px, py)  : [];
     enemies = [...spawnGhosts(room, px, py), ...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws, ...nk];
   }
   else                             enemies = spawnGhosts(room, px, py);

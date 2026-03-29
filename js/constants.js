@@ -164,7 +164,7 @@ const C = {
   FLY_CONTACT_DAMAGE:   8,
   SCORE_FLY:            3,
 
-  // Wide bullet powerup
+  // Power bullet powerup
   WIDE_BULLET_SHOTS:    15,
   POWER_HIT_FREEZE_MS:  20,   // ms game logic freezes when a power shot lands
   POWER_SHOT_RECOIL:     8,   // px the player is pushed back on firing a power shot
@@ -210,23 +210,23 @@ const C = {
   COL_RAG_SYMBOL:      '#cc44ff',  // colour for R/A/G rune symbols
   RAG_SYMBOL_COLLECT_R: 20,        // collection radius in px
 
-  // Nuckelavee enemy — slow skinless horse-rider with proximity aura damage
-  NUCKELAVEE_HP:             180,
-  NUCKELAVEE_RADIUS:          22,
-  NUCKELAVEE_SPEED:            0.8,
-  NUCKELAVEE_CONTACT_DAMAGE:   30,
-  NUCKELAVEE_AURA_RADIUS:      65,   // px — distance at which aura damage ticks
-  NUCKELAVEE_AURA_DAMAGE:       1,   // HP per tick (invincibility frames gate frequency)
-  NUCKELAVEE_AURA_INTERVAL:     6,   // frames between aura damage attempts
-  SCORE_NUCKELAVEE:            90,
-  COL_NUCKELAVEE:        '#7a1818',  // dark blood-red for body outline
-  COL_NUCKELAVEE_VEIN:   '#cc6622',  // orange-yellow for exposed veins/eye
+  // Demon enemy — slow skinless horse-rider with proximity aura damage
+  DEMON_HP:             180,
+  DEMON_RADIUS:          22,
+  DEMON_SPEED:            0.8,
+  DEMON_CONTACT_DAMAGE:   30,
+  DEMON_AURA_RADIUS:      65,   // px — distance at which aura damage ticks
+  DEMON_AURA_DAMAGE:       1,   // HP per tick (invincibility frames gate frequency)
+  DEMON_AURA_INTERVAL:     6,   // frames between aura damage attempts
+  SCORE_DEMON:            90,
+  COL_DEMON:        '#7a1818',  // dark blood-red for body outline
+  COL_DEMON_VEIN:   '#cc6622',  // orange-yellow for exposed veins/eye
 
-  // Nuckelavee poison trail (gas cloud left behind as it moves)
-  NUCKELAVEE_TRAIL_LIFETIME:       300,  // frames each trail wisp lives
-  NUCKELAVEE_TRAIL_INTERVAL:         6,  // spawn one wisp every N frames
-  NUCKELAVEE_TRAIL_DAMAGE:           10,
-  NUCKELAVEE_TRAIL_DAMAGE_INTERVAL:  8,  // frames between trail damage ticks
+  // Demon poison trail (gas cloud left behind as it moves)
+  DEMON_TRAIL_LIFETIME:       300,  // frames each trail wisp lives
+  DEMON_TRAIL_INTERVAL:         6,  // spawn one wisp every N frames
+  DEMON_TRAIL_DAMAGE:           10,
+  DEMON_TRAIL_DAMAGE_INTERVAL:  8,  // frames between trail damage ticks
 
   // Ghoul Boss — third in boss cycle (floors 2, 5, 8…)
   GHOUL_BOSS_HP:                438,
