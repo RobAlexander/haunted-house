@@ -9,6 +9,7 @@ const C = {
 
   // Player
   PLAYER_SPEED:            4,
+  PLAYER_ACCEL_MS:         100,  // ms to reach full speed from rest (and stop from full speed)
   PLAYER_RADIUS:           12,
   PLAYER_MAX_HP:           100,
   PLAYER_FIRE_RATE:        10,   // frames between shots
@@ -170,10 +171,10 @@ const C = {
   PICKUP_HEAL_AMOUNT: 40,
 
   // Autofire powerup
-  AUTOFIRE_SHOTS:          50,    // total shots granted
+  AUTOFIRE_SHOTS:          30,    // total shots granted
   AUTOFIRE_FIRE_RATE:       4,    // frames between shots (vs 10 normal)
-  AUTOFIRE_MAX_SPREAD:      0.35, // max angular deviation (radians, ~20°)
-  AUTOFIRE_SPREAD_PER_SHOT: 0.022,// spread added each fired shot (max reached ~16 shots in)
+  AUTOFIRE_MAX_SPREAD:      0.6, // max angular deviation (radians, ~20°)
+  AUTOFIRE_SPREAD_PER_SHOT: 0.05,// spread added each fired shot (max reached ~16 shots in)
   COL_AUTOFIRE_PICKUP: '#ff8844', // orange
 
   // Floor difficulty scaling (floor 1 = baseline; scales linearly each floor above 1)
@@ -222,9 +223,9 @@ const C = {
   COL_NUCKELAVEE_VEIN:   '#cc6622',  // orange-yellow for exposed veins/eye
 
   // Nuckelavee poison trail (gas cloud left behind as it moves)
-  NUCKELAVEE_TRAIL_LIFETIME:       200,  // frames each trail wisp lives
+  NUCKELAVEE_TRAIL_LIFETIME:       300,  // frames each trail wisp lives
   NUCKELAVEE_TRAIL_INTERVAL:         6,  // spawn one wisp every N frames
-  NUCKELAVEE_TRAIL_DAMAGE:           1,
+  NUCKELAVEE_TRAIL_DAMAGE:           10,
   NUCKELAVEE_TRAIL_DAMAGE_INTERVAL:  8,  // frames between trail damage ticks
 
   // Ghoul Boss — third in boss cycle (floors 2, 5, 8…)
@@ -235,7 +236,7 @@ const C = {
   COL_GHOUL_BOSS:          '#8a2050',  // dark crimson-magenta
 
   // Speed & invuln powerups
-  SPEED_POWERUP_MULT:     1.8,    // movement speed multiplier while active
+  SPEED_POWERUP_MULT:     1.6,    // movement speed multiplier while active
   SPEED_POWERUP_DURATION: 480,    // 8 s at 60fps
   INVULN_POWERUP_DURATION:300,    // 5 s at 60fps
   COL_SPEED_PICKUP:  '#00eeff',   // cyan

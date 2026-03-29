@@ -29,7 +29,7 @@ const G = {
   newHighScore:    null,   // 1-based rank of last score, or null
   nameInput:       '',     // player name being typed on NAME_ENTRY screen
   pendingEndState: null,   // WIN or GAME_OVER waiting after name entry
-  devConsole:      { open: false, input: '', output: '' },
+  devConsole:      { open: false, input: '', output: '', history: [], historyIdx: -1 },
   devFullMap:     false,
   symbolFlicker:  { timer: 0, col: '' },
   freezeUntil:    0,   // performance.now() timestamp until which game logic is frozen

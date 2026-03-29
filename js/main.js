@@ -66,7 +66,7 @@ function draw() {
 
   if (!G.mapOpen && performance.now() >= G.freezeUntil) {
     G.player.update(keys, mouseX / _scale, mouseY / _scale, G.currentRoom);
-    if (mouseDown) G.player.shoot(G.bullets);
+    if (mouseDown && G.player.autofireShots > 0) G.player.shoot(G.bullets);
 
     for (const e of G.enemies) e.update(G.player, G.currentRoom);
     for (let i = G.flies.length - 1; i >= 0; i--) {
@@ -150,7 +150,7 @@ function mouseReleased() {
 }
 
 const DEV_COMMANDS = [
-  'boss', 'fullmap', 'help', 'power', 'setfloor', 'spawn_maxhp',
+  'boss', 'fullmap', 'help', 'powerup', 'setfloor', 'spawn_maxhp',
   'spawn_ghost', 'spawn_ghoul', 'spawn_ghoul_boss', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_nuckelavee', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
@@ -193,10 +193,22 @@ function _execDevCommand(cmd) {
     G.player.pos.y = corners[0].y;
     return 'Teleported to boss room.';
   }
-  if (cmd === 'power') {
-    if (!G.player) return 'No player.';
-    G.player.wideShots = C.WIDE_BULLET_SHOTS;
-    return `Power shots granted (${C.WIDE_BULLET_SHOTS}).`;
+  if (cmd.startsWith('powerup')) {
+    if (G.state !== STATES.PLAYING) return 'Start a game first.';
+    const name = cmd.split(' ')[1];
+    const INVENTORY_TYPES = { speed: 'speed', invuln: 'invuln', autofire: 'autofire', heal: 'heal' };
+    if (name === 'powershot') {
+      G.player.wideShots = C.WIDE_BULLET_SHOTS;
+      return `Power shots granted (${C.WIDE_BULLET_SHOTS}).`;
+    } else if (name === 'maxhp') {
+      G.player.maxHp = Math.round(G.player.maxHp * 1.20);
+      G.player.hp    = Math.min(G.player.hp + Math.round(G.player.maxHp * 0.20), G.player.maxHp);
+      AudioEngine.playSFX('maxhp_fanfare');
+      return `Max HP raised to ${G.player.maxHp}.`;
+    } else if (INVENTORY_TYPES[name]) {
+      return G.player.addPowerup(name) ? `${name} added to inventory.` : 'Inventory full.';
+    }
+    return 'Usage: powerup <powershot|heal|speed|invuln|autofire|maxhp>';
   }
   if (cmd === 'fullmap') {
     G.devFullMap = !G.devFullMap;
@@ -269,8 +281,24 @@ function keyPressed() {
   }
   if (G.devConsole.open) {
     if (key === 'Enter') {
+      const cmd = G.devConsole.input.trim();
+      if (cmd) {
+        G.devConsole.history.unshift(cmd);   // newest first
+        G.devConsole.historyIdx = -1;
+      }
       G.devConsole.output = _execDevCommand(G.devConsole.input);
       G.devConsole.input  = '';
+    } else if (key === 'ArrowUp') {
+      const h = G.devConsole.history;
+      if (h.length) {
+        G.devConsole.historyIdx = Math.min(G.devConsole.historyIdx + 1, h.length - 1);
+        G.devConsole.input = h[G.devConsole.historyIdx];
+      }
+    } else if (key === 'ArrowDown') {
+      G.devConsole.historyIdx--;
+      G.devConsole.input = G.devConsole.historyIdx >= 0
+        ? G.devConsole.history[G.devConsole.historyIdx]
+        : '';
     } else if (key === 'Tab') {
       const partial  = G.devConsole.input.toLowerCase();
       const matches  = DEV_COMMANDS.filter(c => c.startsWith(partial));

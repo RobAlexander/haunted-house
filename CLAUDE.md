@@ -100,12 +100,12 @@ Incoming player damage scales up 10% per floor with no cap (`FLOOR_DAMAGE_BONUS`
 
 ## Developer Console
 
-Open with `` ` ``. Tab-completes commands.
+Open with `` ` ``. Tab-completes commands. Up/Down arrow navigates command history (in-memory, newest first).
 
 | Command | Effect |
 |---|---|
 | `boss` | Teleport to boss room (spawns player in a covered corner) |
-| `power` | Grant power (wide) shots |
+| `powerup <name>` | Grant a powerup by name: `powershot`, `heal`, `speed`, `invuln`, `autofire`, `maxhp` |
 | `fullmap` | Toggle full map view (shows unvisited rooms in dim outline) |
 | `setfloor <n>` | Set floor number and re-apply difficulty scaling to live enemies |
 | `spawn_ghost` | Spawn a normal ghost near player |
@@ -133,8 +133,9 @@ Open with `` ` ``. Tab-completes commands.
 - Boss room = deepest room; entry wall treated as solid by `getWallRects()` until `ragAllCollected()`; stairwell direction set on `room.stairwell` when boss is killed.
 - Treasure room pickup activated on `enterRoom()`, consumed in `checkPickup()` each frame.
 - Lunge ghost: 30% of ghost spawns; timers controlled by `GHOST_LUNGE_COOLDOWN_MIN/MAX`.
-- **Player movement** — no acceleration curve; instant full speed (`PLAYER_SPEED` 4 px/frame) on key press, instant stop on release. Diagonal normalized to same speed as cardinal.
-- **Power-shot powerup**: 15 shots at 3× bullet radius; spawns in a second dead-end room (65% chance). HUD label "PWR", dev command `power`. On fire: plays `power_shoot` SFX (deep lowpass noise + sub-bass thud), pushes player back `POWER_SHOT_RECOIL` (8 px), and freezes game logic for `POWER_HIT_FREEZE_MS` (20 ms) on hit (`G.freezeUntil` timestamp; checked in `draw()` before update phase).
+- **Player movement** — linear acceleration curve: velocity ramps from 0 to `PLAYER_SPEED` (4 px/frame) in `PLAYER_ACCEL_MS` (100 ms, = 6 frames at 60fps), and decelerates at the same rate. Each frame, velocity steps toward the target (normalized input × speed) by `speed / accel_frames`; deceleration target is `{0,0}`. Speed powerup scales both top speed and step size, preserving the 100 ms ramp. Diagonal normalized to same speed as cardinal.
+- **Shooting** — semi-auto: one shot per click. Holding the mouse button only continues firing while `autofireShots > 0`. Bullets spawn at the barrel tip (local coords `(26, 7)` rotated into world space: `pos + (cos(a)·26 − sin(a)·7,  sin(a)·26 + cos(a)·7)`).
+- **Power-shot powerup**: 15 shots at 3× bullet radius; spawns in a second dead-end room (65% chance). HUD label "PWR", dev command `powerup powershot`. On fire: plays `power_shoot` SFX (deep lowpass noise + sub-bass thud), pushes player back `POWER_SHOT_RECOIL` (8 px), and freezes game logic for `POWER_HIT_FREEZE_MS` (20 ms) on hit (`G.freezeUntil` timestamp; checked in `draw()` before update phase).
 - **Autofire powerup** — `'autofire'` type: 50 shots at `AUTOFIRE_FIRE_RATE` (4f/shot). First shot exact; each subsequent shot adds `AUTOFIRE_SPREAD_PER_SHOT` (0.022 rad) of angular spread up to `AUTOFIRE_MAX_SPREAD` (0.35 rad ≈ 20°). Spread decays 0.008 rad/frame naturally; resets to 0 on mouse release. Crosshair gap expands from 3 px to ~19 px proportionally. Orange triple-arrow sprite. HUD slot label "ATF", active indicator "ATF ×N". Spawns in dead-end rooms (23% chance, alongside wide/speed/invuln).
 - **Muzzle flash** — `player.muzzleFlash { timer, maxTimer, isPower }` set on each shot; decremented in `update()`; rendered in `drawPlayer()` inside the `rotate()` block at barrel tip (local coords 26,7). Normal: 5f, small glow + 3 rays. Power: 7f, larger glow + 5 rays including tall verticals.
 - GhoulEnemy: crawls slowly then leaps at `GHOUL_LEAP_SPEED` when within `GHOUL_LEAP_RANGE`; appears in skull and mixed rooms.

@@ -16,6 +16,7 @@ class Player {
     this.autofireShots  = 0;    // shots remaining from autofire powerup
     this.autofireSpread = 0;    // current angular spread (grows while holding fire)
     this.muzzleFlash    = { timer: 0, maxTimer: 0, isPower: false };
+    this.vel            = { x: 0, y: 0 };   // current velocity (px/frame); accelerates toward target
 
     // Sprite deformation — rerolled each game
     // Body: 8-point spline, mild radial variation on a 7.5×11 ellipse
@@ -87,14 +88,25 @@ class Player {
     if (keys['s'] || keys['arrowdown'])  vy += 1;
     if (keys['a'] || keys['arrowleft'])  vx -= 1;
     if (keys['d'] || keys['arrowright']) vx += 1;
-    const n = normalizeVec(vx, vy);
-
+    const n   = normalizeVec(vx, vy);
     const spd = C.PLAYER_SPEED * (this.speedTimer > 0 ? C.SPEED_POWERUP_MULT : 1);
 
+    // Accelerate velocity toward the target (n * spd), reaching it in PLAYER_ACCEL_MS
+    const accel   = spd / (C.PLAYER_ACCEL_MS / 1000 * C.FPS);
+    const targetX = n.x * spd, targetY = n.y * spd;
+    const dvx = targetX - this.vel.x, dvy = targetY - this.vel.y;
+    const dvMag = Math.hypot(dvx, dvy);
+    if (dvMag <= accel) {
+      this.vel.x = targetX; this.vel.y = targetY;
+    } else {
+      this.vel.x += (dvx / dvMag) * accel;
+      this.vel.y += (dvy / dvMag) * accel;
+    }
+
     // Move on each axis separately so the player slides along walls
-    this.pos.x += n.x * spd;
+    this.pos.x += this.vel.x;
     this._resolveCollisions(room);
-    this.pos.y += n.y * spd;
+    this.pos.y += this.vel.y;
     this._resolveCollisions(room);
 
     if (this.fireCooldown     > 0) this.fireCooldown--;
@@ -136,9 +148,11 @@ class Player {
     const damage = isPower ? C.BULLET_DAMAGE * 3 : C.BULLET_DAMAGE;
     if (isPower) this.wideShots--;
 
-    const ox = Math.cos(this.angle) * (this.radius + r + 2);
-    const oy = Math.sin(this.angle) * (this.radius + r + 2);
-    bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'player', damage, r);
+    // Spawn at barrel tip — local (26, 7) rotated into world space
+    const ca = Math.cos(this.angle), sa = Math.sin(this.angle);
+    const tipX = this.pos.x + ca * 26 - sa * 7;
+    const tipY = this.pos.y + sa * 26 + ca * 7;
+    bullets.fire(tipX, tipY, vx, vy, 'player', damage, r);
 
     this.fireCooldown = isAutofire ? C.AUTOFIRE_FIRE_RATE : C.PLAYER_FIRE_RATE;
 
