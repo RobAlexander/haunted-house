@@ -6,6 +6,9 @@ let   _scale       = 1;      // canvas pixels per logical pixel (set in setup/wi
 let   _justFocused = false;  // swallow the click that re-focuses the window
 
 window.addEventListener('focus', () => { _justFocused = true; });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) AudioEngine.resumeIfSuspended();
+});
 
 // Auto-pause on window blur or mouse leaving the page
 function _autoPause() {
@@ -49,6 +52,13 @@ function draw() {
   // Room slide transition
   if (G.state === STATES.ROOM_TRANSITION) {
     tickTransition();
+    Renderer.draw();
+    return;
+  }
+
+  // Cycle-complete animation — tick particles/player walk, then render
+  if (G.state === STATES.CYCLE_COMPLETE) {
+    tickCycleAnim();
     Renderer.draw();
     return;
   }
@@ -264,7 +274,8 @@ function keyPressed() {
     if (key === 'Enter') {
       submitNameAndEnd(G.nameInput);
     } else if (key === 'Escape') {
-      submitNameAndEnd('unknown');
+      G.newHighScore = null;
+      G.state = G.pendingEndState;
     } else if (key === 'Backspace') {
       G.nameInput = G.nameInput.slice(0, -1);
     } else if (key.length === 1 && G.nameInput.length < 12) {
@@ -335,9 +346,27 @@ function keyPressed() {
 
   if (key.toLowerCase() === 'n' && G.state === STATES.WIN) nextFloor();
 
+  if (key.toLowerCase() === 'n' && G.state === STATES.CYCLE_COMPLETE) {
+    nextFloor();
+    return false;
+  }
+
+  if (key.toLowerCase() === 'e' && G.state === STATES.CYCLE_COMPLETE) {
+    G.floor = 1;
+    AudioEngine.stopMusic();
+    _beginEndSequence(STATES.MENU);
+    return false;
+  }
+
   if (key === 'Escape' && G.state !== STATES.MENU) {
     if (G.mapOpen) { G.mapOpen = false; return false; }
     if (G.state === STATES.PLAYING) { G.state = STATES.PAUSED; return false; }
+    if (G.state === STATES.CYCLE_COMPLETE) {
+      G.floor = 1;
+      AudioEngine.stopMusic();
+      _beginEndSequence(STATES.MENU);
+      return false;
+    }
     if (G.state === STATES.PAUSED ||
         G.state === STATES.GAME_OVER ||
         G.state === STATES.WIN) {

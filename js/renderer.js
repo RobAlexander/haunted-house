@@ -40,12 +40,13 @@ const Renderer = {
     this.drawVignette(G.player);
     this.drawSymbolFlicker();
 
-    if (G.mapOpen)                         { this.drawMap(); }
-    if (G.state === STATES.NAME_ENTRY)     this.drawNameEntry();
-    if (G.state === STATES.GAME_OVER)      this.drawGameOver();
-    if (G.state === STATES.WIN)            this.drawWin();
-    if (G.state === STATES.PAUSED)         this.drawPaused();
-    if (G.devConsole.open)                 this.drawDevConsole();
+    if (G.mapOpen)                              { this.drawMap(); }
+    if (G.state === STATES.NAME_ENTRY)          this.drawNameEntry();
+    if (G.state === STATES.GAME_OVER)           this.drawGameOver();
+    if (G.state === STATES.WIN)                 this.drawWin();
+    if (G.state === STATES.PAUSED)              this.drawPaused();
+    if (G.state === STATES.CYCLE_COMPLETE)      this.drawCycleComplete();
+    if (G.devConsole.open)                      this.drawDevConsole();
   },
 
   // ── Menu ──────────────────────────────────────────────────────────────
@@ -1764,6 +1765,95 @@ const Renderer = {
       noStroke(); fill(col); rect(lx, y, 7, 7, 1);
       fill(C.COL_HUD_TEXT); textSize(9); textAlign(LEFT, CENTER);
       text(label, lx + 12, y + 3);
+    }
+  },
+
+  drawCycleComplete() {
+    const anim = G.cycleAnim;
+    if (!anim) return;
+    const t = anim.timer;
+
+    // Screen shake offset
+    const sx = anim.shake > 0 ? (Math.random() - 0.5) * anim.shake : 0;
+    const sy = anim.shake > 0 ? (Math.random() - 0.5) * anim.shake : 0;
+    push(); translate(sx, sy);
+
+    // Room fades out over first 70 frames
+    const roomAlpha = Math.max(0, 1 - t / 70);
+    if (roomAlpha > 0.01) {
+      drawingContext.globalAlpha = roomAlpha;
+      this.drawRoom(G.currentRoom);
+      drawingContext.globalAlpha = 1;
+    } else {
+      noStroke(); fill(C.COL_BG); rect(0, 0, C.WIDTH, C.HEIGHT);
+    }
+
+    // Debris: flying wall chunks
+    noStroke();
+    for (const d of anim.debris) {
+      drawingContext.globalAlpha = d.life / d.maxLife;
+      fill(C.COL_HUD_TITLE);
+      push(); translate(d.x, d.y); rotate(d.rot);
+      rect(-d.w / 2, -d.h / 2, d.w, d.h);
+      pop();
+    }
+    drawingContext.globalAlpha = 1;
+
+    // Fire particles
+    noStroke();
+    for (const p of anim.particles) {
+      drawingContext.globalAlpha = (p.life / p.maxLife) * 0.9;
+      fill(p.col);
+      circle(p.x, p.y, p.r * 2);
+    }
+    drawingContext.globalAlpha = 1;
+
+    // Player walking away
+    this.drawPlayer(G.player);
+
+    pop(); // end shake
+
+    // White flash at start
+    if (t < 12) {
+      drawingContext.globalAlpha = (1 - t / 12) * 0.85;
+      noStroke(); fill(255, 255, 255);
+      rect(0, 0, C.WIDTH, C.HEIGHT);
+      drawingContext.globalAlpha = 1;
+    }
+
+    // Text overlay fades in after t > 85
+    if (t > 85) {
+      const fadeIn = Math.min(1, (t - 85) / 35);
+      noStroke(); fill(0, 0, 0, Math.round(170 * fadeIn));
+      rect(0, 0, C.WIDTH, C.HEIGHT);
+
+      drawingContext.globalAlpha = fadeIn;
+      textAlign(CENTER, CENTER);
+
+      // Title
+      fill('#ff5500'); textFont('monospace'); textSize(40);
+      text('THE HOUSE FALLS!', C.WIDTH / 2, C.HEIGHT / 2 - 82);
+
+      // Cycle number
+      fill(C.COL_WIN); textSize(18);
+      text(`Boss cycle ${G.cyclesCompleted} complete`, C.WIDTH / 2, C.HEIGHT / 2 - 44);
+
+      // HP penalty info
+      const mult = (1 + G.cyclesCompleted * 0.20).toFixed(1);
+      fill(C.COL_HUD_TEXT); textSize(13);
+      text(`All boss HP is now ×${mult}`, C.WIDTH / 2, C.HEIGHT / 2 - 18);
+
+      // Score
+      fill(C.COL_CLEARED); textSize(20);
+      text(`SCORE:  ${G.score}`, C.WIDTH / 2, C.HEIGHT / 2 + 14);
+
+      // Options
+      fill(C.COL_WIN); textSize(14);
+      text('N  —  Try again, harder', C.WIDTH / 2, C.HEIGHT / 2 + 50);
+      fill(C.COL_HUD_TEXT);
+      text('E  —  Exit  (high score table)', C.WIDTH / 2, C.HEIGHT / 2 + 72);
+
+      drawingContext.globalAlpha = 1;
     }
   },
 

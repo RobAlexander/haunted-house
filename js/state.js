@@ -6,6 +6,7 @@ const STATES = {
   NAME_ENTRY:      'name_entry',
   GAME_OVER:       'game_over',
   WIN:             'win',
+  CYCLE_COMPLETE:  'cycle_complete',
 };
 
 const G = {
@@ -33,6 +34,8 @@ const G = {
   devFullMap:     false,
   symbolFlicker:  { timer: 0, col: '' },
   freezeUntil:    0,   // performance.now() timestamp until which game logic is frozen
+  cyclesCompleted: 0,  // how many full boss cycles (skull→ghoul→mummy) the player has beaten this run
+  cycleAnim:      null, // animation state while in CYCLE_COMPLETE state
 };
 
 // ── Game lifecycle ────────────────────────────────────────────────────────
@@ -53,6 +56,8 @@ function startGame() {
   G.nameInput        = '';
   G.pendingEndState  = null;
   G.symbolFlicker   = { timer: 0, col: '' };
+  G.cyclesCompleted = 0;
+  G.cycleAnim       = null;
   G.dungeon        = new DungeonGraph();
   G.bullets        = new BulletPool();
   G.player         = new Player(C.WIDTH / 2, C.HEIGHT / 2);
@@ -71,6 +76,7 @@ function nextFloor() {
   const savedSpeedTimer    = G.player ? G.player.speedTimer    : 0;
   const savedInvulnTimer   = G.player ? G.player.invulnTimer   : 0;
   const savedAutofireShots = G.player ? G.player.autofireShots : 0;
+  const savedCycles        = G.cyclesCompleted;
   G.floor++;
   startGame();
   if (savedHp !== null) {
@@ -83,7 +89,8 @@ function nextFloor() {
     G.player.invulnTimer   = savedInvulnTimer;
     G.player.autofireShots = savedAutofireShots;
   }
-  G.score = savedScore;
+  G.score           = savedScore;
+  G.cyclesCompleted = savedCycles;
 }
 
 function enterRoom(room, fromDir) {
@@ -197,6 +204,98 @@ function submitNameAndEnd(name) {
   G.state        = G.pendingEndState;
 }
 
+// ── Boss cycle completion ─────────────────────────────────────────────────
+
+function cycleComplete() {
+  G.cyclesCompleted++;
+  const pl = G.player;
+  // Which edge is the stairwell on?
+  const exitDir   = G.currentRoom.stairwell;
+  const walkAngle = { north: -Math.PI/2, south: Math.PI/2, east: 0, west: Math.PI }[exitDir] || 0;
+  G.cycleAnim = { timer: 0, walkAngle, particles: [], debris: [], shake: 18 };
+  // Initial burst
+  for (let i = 0; i < 70; i++) _spawnCycleParticle();
+  for (let i = 0; i < 10; i++) _spawnCycleDebris();
+  pl.invincibleFrames = 9999; // player can't be hurt during the animation
+  G.state = STATES.CYCLE_COMPLETE;
+  AudioEngine.playSFX('final_symbol');
+}
+
+function _spawnCycleParticle() {
+  const anim = G.cycleAnim;
+  const fromWall = Math.random() > 0.3;
+  let ox, oy;
+  if (fromWall) {
+    const side = Math.floor(Math.random() * 4);
+    if (side === 0) { ox = 30 + Math.random() * (C.WIDTH - 60); oy = 25; }
+    else if (side === 1) { ox = 30 + Math.random() * (C.WIDTH - 60); oy = C.HEIGHT - 25; }
+    else if (side === 2) { ox = 25; oy = 30 + Math.random() * (C.HEIGHT - 60); }
+    else { ox = C.WIDTH - 25; oy = 30 + Math.random() * (C.HEIGHT - 60); }
+  } else {
+    ox = C.WIDTH / 2 + (Math.random() - 0.5) * 120;
+    oy = C.HEIGHT / 2 + (Math.random() - 0.5) * 80;
+  }
+  const ang = Math.random() * Math.PI * 2;
+  const spd = 0.6 + Math.random() * 4;
+  const life = 30 + Math.floor(Math.random() * 80);
+  const r    = 1 + Math.random() * 4;
+  const cols = ['#ffffff', '#ffee44', '#ffaa00', '#ff5500', '#ff2200'];
+  anim.particles.push({ x: ox, y: oy, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, r, life, maxLife: life, col: cols[Math.floor(Math.random() * cols.length)] });
+}
+
+function _spawnCycleDebris() {
+  const anim = G.cycleAnim;
+  const side = Math.floor(Math.random() * 4);
+  let x, y;
+  if (side === 0) { x = 30 + Math.random() * (C.WIDTH - 60); y = 25; }
+  else if (side === 1) { x = 30 + Math.random() * (C.WIDTH - 60); y = C.HEIGHT - 25; }
+  else if (side === 2) { x = 25; y = 30 + Math.random() * (C.HEIGHT - 60); }
+  else { x = C.WIDTH - 25; y = 30 + Math.random() * (C.HEIGHT - 60); }
+  const ang = Math.atan2(y - C.HEIGHT / 2, x - C.WIDTH / 2);
+  const spd = 0.4 + Math.random() * 1.8;
+  const life = 90 + Math.floor(Math.random() * 60);
+  anim.debris.push({ x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, w: 8 + Math.random() * 22, h: 4 + Math.random() * 12, rot: Math.random() * Math.PI * 2, vrot: (Math.random() - 0.5) * 0.12, life, maxLife: life });
+}
+
+function tickCycleAnim() {
+  const anim = G.cycleAnim;
+  if (!anim) return;
+  anim.timer++;
+  const t = anim.timer;
+
+  // Walk player toward exit edge
+  const spd = 2.5;
+  G.player.pos.x += Math.cos(anim.walkAngle) * spd;
+  G.player.pos.y += Math.sin(anim.walkAngle) * spd;
+  G.player.angle  = anim.walkAngle;
+
+  // Ongoing particle spawn for first 90 frames
+  if (t < 90 && t % 3 === 0) {
+    for (let i = 0; i < 4; i++) _spawnCycleParticle();
+  }
+  if (t < 40 && t % 12 === 0) _spawnCycleDebris();
+
+  // Update particles
+  for (let i = anim.particles.length - 1; i >= 0; i--) {
+    const p = anim.particles[i];
+    p.x  += p.vx; p.y += p.vy;
+    p.vy += 0.05;
+    p.vx *= 0.97; p.vy *= 0.97;
+    if (--p.life <= 0) anim.particles.splice(i, 1);
+  }
+
+  // Update debris
+  for (let i = anim.debris.length - 1; i >= 0; i--) {
+    const d = anim.debris[i];
+    d.x += d.vx; d.y += d.vy;
+    d.vy += 0.025;
+    d.rot += d.vrot;
+    if (--d.life <= 0) anim.debris.splice(i, 1);
+  }
+
+  if (anim.shake > 0) anim.shake -= 0.4;
+}
+
 // ── Per-frame checks ──────────────────────────────────────────────────────
 
 function checkRoomCleared() {
@@ -232,12 +331,14 @@ function checkRoomExit() {
   if (pl.pos.x < P            && rm.connections.west  && !_ragBlocked(rm.connections.west))  { startRoomTransition('west');  return; }
 
   // Stairwell: walk into it to advance to next floor
+  // On mummy-boss floors (floor % 3 === 0) a full cycle is complete — show the cycle screen instead.
   if (rm.stairwell) {
     const sw = rm.stairwell;
-    if (sw === 'north' && pl.pos.y < P)            { nextFloor(); return; }
-    if (sw === 'south' && pl.pos.y > C.HEIGHT - P) { nextFloor(); return; }
-    if (sw === 'east'  && pl.pos.x > C.WIDTH  - P) { nextFloor(); return; }
-    if (sw === 'west'  && pl.pos.x < P)            { nextFloor(); return; }
+    const _step = () => { if (G.floor % 3 === 0) cycleComplete(); else nextFloor(); };
+    if (sw === 'north' && pl.pos.y < P)            { _step(); return; }
+    if (sw === 'south' && pl.pos.y > C.HEIGHT - P) { _step(); return; }
+    if (sw === 'east'  && pl.pos.x > C.WIDTH  - P) { _step(); return; }
+    if (sw === 'west'  && pl.pos.x < P)            { _step(); return; }
   }
 }
 

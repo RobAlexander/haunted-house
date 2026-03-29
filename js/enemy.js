@@ -4,6 +4,9 @@ function _floorMult(bonusPerFloor, cap) {
   return Math.min(cap, 1 + ((G.floor || 1) - 1) * bonusPerFloor);
 }
 
+// +20% boss HP per completed cycle, no cap
+function _cycleHpMult() { return 1 + (G.cyclesCompleted || 0) * 0.20; }
+
 // ── Ghost ─────────────────────────────────────────────────────────────────
 
 class GhostEnemy {
@@ -658,8 +661,8 @@ class BossEnemy {
   constructor(x, y) {
     this.pos        = { x, y };
     this.vel        = { x: 0, y: 0 };
-    this.hp         = C.BOSS_HP;
-    this.maxHp      = C.BOSS_HP;
+    this.hp         = Math.round(C.BOSS_HP * _cycleHpMult());
+    this.maxHp      = this.hp;
     this.radius     = C.BOSS_RADIUS;
     this.type       = 'boss';
     this.scoreValue = C.SCORE_BOSS;
@@ -1059,8 +1062,8 @@ class MummyBossEnemy {
   constructor(x, y) {
     this.pos            = { x, y };
     this.vel            = { x: 0, y: 0 };
-    this.hp             = C.MUMMY_BOSS_HP;
-    this.maxHp          = C.MUMMY_BOSS_HP;
+    this.hp             = Math.round(C.MUMMY_BOSS_HP * _cycleHpMult());
+    this.maxHp          = this.hp;
     this.radius         = C.MUMMY_BOSS_RADIUS;
     this.type           = 'mummy_boss';
     this.scoreValue     = C.SCORE_MUMMY_BOSS;
@@ -1198,8 +1201,8 @@ class GhoulBossEnemy {
   constructor(x, y) {
     this.pos             = { x, y };
     this.vel             = { x: 0, y: 0 };
-    this.hp              = C.GHOUL_BOSS_HP;
-    this.maxHp           = C.GHOUL_BOSS_HP;
+    this.hp              = Math.round(C.GHOUL_BOSS_HP * _cycleHpMult());
+    this.maxHp           = this.hp;
     this.radius          = C.GHOUL_BOSS_RADIUS;
     this.type            = 'ghoul_boss';
     this.scoreValue      = C.SCORE_GHOUL_BOSS;

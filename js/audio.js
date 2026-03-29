@@ -31,6 +31,11 @@ const AudioEngine = (() => {
 
     reverb = _makeReverb(3.0, 2.5);
     reverb.connect(master);
+
+    // Resume AudioContext if the browser suspends it (e.g. tab backgrounded)
+    ctx.onstatechange = () => {
+      if (ctx.state === 'suspended') ctx.resume();
+    };
   }
 
   function _makeReverb(duration, decay) {
@@ -1082,5 +1087,9 @@ const AudioEngine = (() => {
 
   // ── Public API ───────────────────────────────────────────────────────────
 
-  return { init, startMusic, stopMusic, startVictoryMusic, setBossMode, playSFX, playFlyBuzz };
+  function resumeIfSuspended() {
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  }
+
+  return { init, startMusic, stopMusic, startVictoryMusic, setBossMode, playSFX, playFlyBuzz, resumeIfSuspended };
 })();
