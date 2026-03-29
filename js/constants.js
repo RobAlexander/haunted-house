@@ -56,7 +56,7 @@ const C = {
 
   // Boss enemy
   BOSS_RADIUS:            28,
-  BOSS_HP:                300,
+  BOSS_HP:                375,
   BOSS_SPEED_1:           0.85,
   BOSS_SPEED_2:           1.3,
   BOSS_SPEED_3:           1.8,
@@ -151,7 +151,7 @@ const C = {
   SCORE_MUMMY:          80,
 
   // Mummy Boss — even-floor boss; phases like skull boss
-  MUMMY_BOSS_HP:        400,
+  MUMMY_BOSS_HP:        500,
   MUMMY_BOSS_RADIUS:    28,
   SCORE_MUMMY_BOSS:     200,
 
@@ -164,8 +164,17 @@ const C = {
   SCORE_FLY:            3,
 
   // Wide bullet powerup
-  WIDE_BULLET_SHOTS:    8,
+  WIDE_BULLET_SHOTS:    15,
+  POWER_HIT_FREEZE_MS:  20,   // ms game logic freezes when a power shot lands
+  POWER_SHOT_RECOIL:     8,   // px the player is pushed back on firing a power shot
   PICKUP_HEAL_AMOUNT: 40,
+
+  // Autofire powerup
+  AUTOFIRE_SHOTS:          50,    // total shots granted
+  AUTOFIRE_FIRE_RATE:       4,    // frames between shots (vs 10 normal)
+  AUTOFIRE_MAX_SPREAD:      0.35, // max angular deviation (radians, ~20°)
+  AUTOFIRE_SPREAD_PER_SHOT: 0.022,// spread added each fired shot (max reached ~16 shots in)
+  COL_AUTOFIRE_PICKUP: '#ff8844', // orange
 
   // Floor difficulty scaling (floor 1 = baseline; scales linearly each floor above 1)
   FLOOR_SPEED_BONUS:         0.065,  // speed multiplier added per floor (floor 2 = 1.065×)
@@ -219,7 +228,7 @@ const C = {
   NUCKELAVEE_TRAIL_DAMAGE_INTERVAL:  8,  // frames between trail damage ticks
 
   // Ghoul Boss — third in boss cycle (floors 2, 5, 8…)
-  GHOUL_BOSS_HP:                350,
+  GHOUL_BOSS_HP:                438,
   GHOUL_BOSS_RADIUS:             22,
   GHOUL_BOSS_CONTACT_DAMAGE:     60,
   SCORE_GHOUL_BOSS:             200,

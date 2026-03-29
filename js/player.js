@@ -9,10 +9,13 @@ class Player {
     this.invincibleFrames = 0;
     this.alive     = true;
     this.wideShots = 0;
-    this.powerups    = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|'speed'|'invuln'|null)
+    this.powerups    = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|'speed'|'invuln'|'autofire'|null)
     this.powerupIdx  = 0;                 // currently selected slot
     this.speedTimer  = 0;   // frames of speed-boost remaining
     this.invulnTimer = 0;   // frames of powerup invincibility remaining
+    this.autofireShots  = 0;    // shots remaining from autofire powerup
+    this.autofireSpread = 0;    // current angular spread (grows while holding fire)
+    this.muzzleFlash    = { timer: 0, maxTimer: 0, isPower: false };
 
     // Sprite deformation — rerolled each game
     // Body: 8-point spline, mild radial variation on a 7.5×11 ellipse
@@ -62,6 +65,8 @@ class Player {
       this.speedTimer = C.SPEED_POWERUP_DURATION;
     } else if (type === 'invuln') {
       this.invulnTimer = C.INVULN_POWERUP_DURATION;
+    } else if (type === 'autofire') {
+      this.autofireShots = C.AUTOFIRE_SHOTS;
     }
     this.powerups[this.powerupIdx] = null;
     AudioEngine.playSFX('pickup');
@@ -94,6 +99,10 @@ class Player {
 
     if (this.fireCooldown     > 0) this.fireCooldown--;
     if (this.invincibleFrames > 0) this.invincibleFrames--;
+
+    // Autofire spread decays naturally so accuracy recovers if player briefly stops firing
+    if (this.autofireSpread  > 0) this.autofireSpread = Math.max(0, this.autofireSpread - 0.008);
+    if (this.muzzleFlash.timer > 0) this.muzzleFlash.timer--;
   }
 
   _resolveCollisions(room) {
@@ -109,17 +118,43 @@ class Player {
 
   shoot(bullets) {
     if (this.fireCooldown > 0 || !this.alive) return;
-    const vx = Math.cos(this.angle) * C.BULLET_SPEED;
-    const vy = Math.sin(this.angle) * C.BULLET_SPEED;
-    const isPower = this.wideShots > 0;
-    const r       = isPower ? C.BULLET_RADIUS * 3 : C.BULLET_RADIUS;
-    const damage  = isPower ? C.BULLET_DAMAGE * 3 : C.BULLET_DAMAGE;
+
+    const isAutofire = this.autofireShots > 0;
+    const isPower    = this.wideShots > 0;
+
+    // Autofire: apply accumulated spread then ramp it up; first shot is always on target
+    let shootAngle = this.angle;
+    if (isAutofire) {
+      shootAngle += (Math.random() - 0.5) * 2 * this.autofireSpread;
+      this.autofireSpread = Math.min(C.AUTOFIRE_MAX_SPREAD, this.autofireSpread + C.AUTOFIRE_SPREAD_PER_SHOT);
+      this.autofireShots--;
+    }
+
+    const vx     = Math.cos(shootAngle) * C.BULLET_SPEED;
+    const vy     = Math.sin(shootAngle) * C.BULLET_SPEED;
+    const r      = isPower ? C.BULLET_RADIUS * 3 : C.BULLET_RADIUS;
+    const damage = isPower ? C.BULLET_DAMAGE * 3 : C.BULLET_DAMAGE;
     if (isPower) this.wideShots--;
+
     const ox = Math.cos(this.angle) * (this.radius + r + 2);
     const oy = Math.sin(this.angle) * (this.radius + r + 2);
     bullets.fire(this.pos.x + ox, this.pos.y + oy, vx, vy, 'player', damage, r);
-    this.fireCooldown = C.PLAYER_FIRE_RATE;
-    AudioEngine.playSFX('shoot');
+
+    this.fireCooldown = isAutofire ? C.AUTOFIRE_FIRE_RATE : C.PLAYER_FIRE_RATE;
+
+    const flashDur = isPower ? 7 : 5;
+    this.muzzleFlash.timer    = flashDur;
+    this.muzzleFlash.maxTimer = flashDur;
+    this.muzzleFlash.isPower  = isPower;
+
+    if (isPower) {
+      // Recoil: push player back along opposite aim direction
+      this.pos.x -= Math.cos(this.angle) * C.POWER_SHOT_RECOIL;
+      this.pos.y -= Math.sin(this.angle) * C.POWER_SHOT_RECOIL;
+      AudioEngine.playSFX('power_shoot');
+    } else {
+      AudioEngine.playSFX('shoot');
+    }
   }
 
   takeDamage(amount) {

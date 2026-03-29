@@ -124,6 +124,7 @@ class BulletPool {
 
           if (circleCollide(b.pos.x, b.pos.y, b.radius, e.pos.x, e.pos.y, e.radius)) {
             e.takeDamage(b.damage);
+            if (b.radius > C.BULLET_RADIUS) G.freezeUntil = performance.now() + C.POWER_HIT_FREEZE_MS;
             b.deactivate();
             break;
           }

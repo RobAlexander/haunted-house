@@ -236,7 +236,8 @@ const AudioEngine = (() => {
     if (!ctx) return;
     const now = ctx.currentTime;
     switch (name) {
-      case 'shoot':      _sfxShoot(now);     break;
+      case 'shoot':       _sfxShoot(now);      break;
+      case 'power_shoot': _sfxPowerShoot(now); break;
       case 'hit':        _sfxHit(now);       break;
       case 'death':      _sfxDeath(now);     break;
       case 'room_enter': _sfxRoomEnter(now); break;
@@ -252,7 +253,8 @@ const AudioEngine = (() => {
       case 'game_over':   _sfxGameOver(now);   break;
       case 'maxhp_fanfare':   _sfxMaxhpFanfare(now);   break;
       case 'win':             _sfxWin(now);            break;
-      case 'symbol_pickup':   _sfxSymbolPickup(now);   break;
+      case 'symbol_pickup':       _sfxSymbolPickup(now);      break;
+      case 'final_symbol':        _sfxFinalSymbol(now);       break;
     }
   }
 
@@ -267,6 +269,35 @@ const AudioEngine = (() => {
     g.gain.value = gain_val;
     src.connect(g);
     return { src, gain: g };
+  }
+
+  // Deep bassy noise burst + sub-bass thud for power shots
+  function _sfxPowerShoot(now) {
+    // Lowpass noise — thick, not crispy
+    const { src, gain } = _noise(0.14, C.SFX_VOL_SHOOT * 3.5);
+    const lp = ctx.createBiquadFilter();
+    lp.type            = 'lowpass';
+    lp.frequency.value = 900;
+    lp.Q.value         = 1.4;
+    gain.gain.setValueAtTime(C.SFX_VOL_SHOOT * 3.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    gain.connect(lp);
+    lp.connect(master);
+    src.start(now);
+    src.stop(now + 0.15);
+
+    // Sub-bass sine thud — descending punch
+    const osc = ctx.createOscillator();
+    const og  = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(45, now + 0.20);
+    og.gain.setValueAtTime(0.20, now);
+    og.gain.exponentialRampToValueAtTime(0.0001, now + 0.20);
+    osc.connect(og);
+    og.connect(master);
+    osc.start(now);
+    osc.stop(now + 0.22);
   }
 
   // Short crisp noise burst (highpass filtered)
@@ -992,6 +1023,61 @@ const AudioEngine = (() => {
     sg.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
     saw.connect(hp); hp.connect(sg); sg.connect(master);
     saw.start(now + 0.02); saw.stop(now + 0.35);
+  }
+
+  // Final symbol collected — longer, more strident version of symbol_pickup
+  function _sfxFinalSymbol(now) {
+    // Tritone stabs: same pair plus octave doublings above and below, louder + longer
+    [[123.5, 0.0], [246.9, 0.0], [369.9, 0.02], [554.4, 0.04]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + delay);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.80, now + delay + 0.9);
+      g.gain.setValueAtTime(0.28, now + delay);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + delay + 1.1);
+      osc.connect(g); g.connect(reverb); g.connect(master);
+      osc.start(now + delay); osc.stop(now + delay + 1.2);
+    });
+
+    // Beating minor seconds: two octaves, louder + longer
+    [[261.6, 0.0], [277.2, 0.0], [523.2, 0.05], [554.4, 0.05]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const g   = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.0, now + delay);
+      g.gain.linearRampToValueAtTime(0.12, now + delay + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + delay + 1.3);
+      osc.connect(g); g.connect(reverb);
+      osc.start(now + delay); osc.stop(now + delay + 1.4);
+    });
+
+    // Ascending strident shriek: sawtooth climbs through dissonant register then drops
+    const shriek = ctx.createOscillator();
+    const shHp   = ctx.createBiquadFilter();
+    const shg    = ctx.createGain();
+    shriek.type = 'sawtooth';
+    shriek.frequency.setValueAtTime(220,  now + 0.05);
+    shriek.frequency.exponentialRampToValueAtTime(1760, now + 0.65);
+    shriek.frequency.exponentialRampToValueAtTime(880,  now + 1.05);
+    shHp.type = 'highpass'; shHp.frequency.value = 600;
+    shg.gain.setValueAtTime(0.0,  now + 0.05);
+    shg.gain.linearRampToValueAtTime(0.16, now + 0.12);
+    shg.gain.exponentialRampToValueAtTime(0.0001, now + 1.05);
+    shriek.connect(shHp); shHp.connect(shg); shg.connect(reverb); shg.connect(master);
+    shriek.start(now + 0.05); shriek.stop(now + 1.1);
+
+    // Sub-bass thud for weight and finality
+    const sub  = ctx.createOscillator();
+    const subg = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(110, now);
+    sub.frequency.exponentialRampToValueAtTime(40, now + 0.7);
+    subg.gain.setValueAtTime(0.20, now);
+    subg.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+    sub.connect(subg); subg.connect(master);
+    sub.start(now); sub.stop(now + 0.8);
   }
 
   // ── Public API ───────────────────────────────────────────────────────────

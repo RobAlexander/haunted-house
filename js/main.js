@@ -64,7 +64,7 @@ function draw() {
 
   // ── Active gameplay ──────────────────────────────────────────────────
 
-  if (!G.mapOpen) {
+  if (!G.mapOpen && performance.now() >= G.freezeUntil) {
     G.player.update(keys, mouseX / _scale, mouseY / _scale, G.currentRoom);
     if (mouseDown) G.player.shoot(G.bullets);
 
@@ -115,6 +115,7 @@ function draw() {
     checkMaxHpPowerup();
     checkSpeedPowerup();
     checkInvulnPowerup();
+    checkAutofirePowerup();
     tickParticles();
 
     if (G.clearedFlash > 0) G.clearedFlash--;
@@ -143,6 +144,8 @@ function mousePressed() {
 
 function mouseReleased() {
   mouseDown = false;
+  // Snap spread back to zero so the next burst starts accurate again
+  if (G.player) G.player.autofireSpread = 0;
   return false;
 }
 

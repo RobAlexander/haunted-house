@@ -26,6 +26,7 @@ const Renderer = {
     this.drawMaxHpPowerup(G.currentRoom);
     this.drawSpeedPowerup(G.currentRoom);
     this.drawInvulnPowerup(G.currentRoom);
+    this.drawAutofirePowerup(G.currentRoom);
     this.drawRagSymbol(G.currentRoom);
     this.drawDrops(G.drops);
     this.drawFlies(G.flies);
@@ -374,6 +375,25 @@ const Renderer = {
     drawingContext.globalAlpha = 1;
     noStroke(); fill(C.COL_INVULN_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
     text('INVUL', p.x, p.y + 24);
+  },
+
+  drawAutofirePowerup(room) {
+    if (!room || !room.autofirePowerupActive || room.autofirePowerupTaken) return;
+    const p     = room.autofirePowerup;
+    const pulse = 0.65 + 0.35 * Math.sin(G.frame * 0.14);
+    drawingContext.globalAlpha = pulse;
+    noFill(); stroke(C.COL_AUTOFIRE_PICKUP); strokeWeight(2);
+    // Three stacked horizontal bullet lines — rapid-fire symbol
+    for (let i = -1; i <= 1; i++) {
+      const yy = p.y + i * 6;
+      line(p.x - 14, yy, p.x + 14, yy);
+      // Arrowhead at right end
+      line(p.x + 14, yy, p.x + 10, yy - 3);
+      line(p.x + 14, yy, p.x + 10, yy + 3);
+    }
+    drawingContext.globalAlpha = 1;
+    noStroke(); fill(C.COL_AUTOFIRE_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
+    text('AUTOFIRE', p.x, p.y + 22);
   },
 
   drawNuckelaveeTrail(enemies) {
@@ -1227,6 +1247,26 @@ const Renderer = {
     line(1, -9, fjx, fjy);  strokeWeight(2.5); point(fjx, fjy);  strokeWeight(1.5);
     line(fjx, fjy, 17, 7);
 
+    // Muzzle flash — rendered in local space at barrel tip (26, 7)
+    const mf = player.muzzleFlash;
+    if (mf.timer > 0) {
+      const ft  = mf.timer / mf.maxTimer;     // 1 → 0 as it fades
+      const sz  = mf.isPower ? 9 : 5;
+      const bx  = 26, by = 7;
+      drawingContext.globalAlpha = ft * 0.9;
+      noStroke(); fill('#ffffaa');
+      circle(bx, by, sz * 1.6);              // bright core glow
+      stroke('#ffffee'); strokeWeight(1.5); noFill();
+      line(bx,        by,  bx + sz * 1.5, by);            // forward spike
+      line(bx,        by,  bx + sz * 0.9, by - sz * 0.9); // diagonal up
+      line(bx,        by,  bx + sz * 0.9, by + sz * 0.9); // diagonal down
+      if (mf.isPower) {
+        line(bx, by, bx + sz * 0.4, by - sz * 1.3);  // tall up
+        line(bx, by, bx + sz * 0.4, by + sz * 1.3);  // tall down
+      }
+      drawingContext.globalAlpha = 1;
+    }
+
     pop();
   },
 
@@ -1283,10 +1323,15 @@ const Renderer = {
   // ── Crosshair ─────────────────────────────────────────────────────────
 
   drawCrosshair(mx, my) {
+    const p      = G.player;
+    const spread = (p && p.autofireShots > 0) ? p.autofireSpread : 0;
+    const gap    = 3 + spread * 45;   // grows from 3px to ~18.75px at max spread
+    const arm    = 6;
     stroke(C.COL_CROSSHAIR); strokeWeight(1); noFill();
-    const s = 8;
-    line(mx-s, my, mx-3, my); line(mx+3, my, mx+s, my);
-    line(mx, my-s, mx, my-3); line(mx, my+3, mx, my+s);
+    line(mx - gap - arm, my,  mx - gap, my);
+    line(mx + gap,       my,  mx + gap + arm, my);
+    line(mx, my - gap - arm,  mx, my - gap);
+    line(mx, my + gap,        mx, my + gap + arm);
     circle(mx, my, 5);
   },
 
@@ -1350,14 +1395,16 @@ const Renderer = {
         stroke(sel ? '#ccccee' : '#333355'); strokeWeight(sel ? 1.5 : 0.8);
         rect(sx, sy, slotW, slotH, 2);
         if (pup) {
-          const col   = pup === 'heal'   ? C.COL_PICKUP
-                      : pup === 'power'  ? C.COL_WIDE_PICKUP
-                      : pup === 'speed'  ? C.COL_SPEED_PICKUP
-                      :                   C.COL_INVULN_PICKUP;
-          const label = pup === 'heal'   ? '+HP'
-                      : pup === 'power'  ? 'PWR'
-                      : pup === 'speed'  ? 'SPD'
-                      :                   'INV';
+          const col   = pup === 'heal'     ? C.COL_PICKUP
+                      : pup === 'power'    ? C.COL_WIDE_PICKUP
+                      : pup === 'speed'    ? C.COL_SPEED_PICKUP
+                      : pup === 'autofire' ? C.COL_AUTOFIRE_PICKUP
+                      :                     C.COL_INVULN_PICKUP;
+          const label = pup === 'heal'     ? '+HP'
+                      : pup === 'power'    ? 'PWR'
+                      : pup === 'speed'    ? 'SPD'
+                      : pup === 'autofire' ? 'ATF'
+                      :                     'INV';
           noStroke(); fill(col); textSize(9); textAlign(CENTER, CENTER);
           text(label, sx + slotW / 2, sy + slotH / 2);
         }
@@ -1378,7 +1425,11 @@ const Renderer = {
       if (p.invulnTimer > 0) {
         const secs = Math.ceil(p.invulnTimer / C.FPS);
         noStroke(); fill(C.COL_INVULN_PICKUP); textSize(8); textAlign(LEFT, TOP);
-        text(`INV ${secs}s`, sx0, sy + slotH + 2 + activeRow * 10);
+        text(`INV ${secs}s`, sx0, sy + slotH + 2 + activeRow * 10); activeRow++;
+      }
+      if (p.autofireShots > 0) {
+        noStroke(); fill(C.COL_AUTOFIRE_PICKUP); textSize(8); textAlign(LEFT, TOP);
+        text(`ATF ×${p.autofireShots}`, sx0, sy + slotH + 2 + activeRow * 10);
       }
     }
 
@@ -1425,12 +1476,13 @@ const Renderer = {
 
     // Pickup hint
     if (room) {
-      const hasHeal  = room.pickupActive  && !room.pickupTaken;
-      const hasPower = room.widePowerupActive && !room.widePowerupTaken;
-      const hasMaxHp = room.maxhpPowerupActive && !room.maxhpPowerupTaken;
-      const hasSpeed = room.speedPowerupActive && !room.speedPowerupTaken;
-      const hasInvuln= room.invulnPowerupActive && !room.invulnPowerupTaken;
-      if (hasHeal || hasPower || hasMaxHp || hasSpeed || hasInvuln) {
+      const hasHeal     = room.pickupActive         && !room.pickupTaken;
+      const hasPower    = room.widePowerupActive     && !room.widePowerupTaken;
+      const hasMaxHp    = room.maxhpPowerupActive    && !room.maxhpPowerupTaken;
+      const hasSpeed    = room.speedPowerupActive    && !room.speedPowerupTaken;
+      const hasInvuln   = room.invulnPowerupActive   && !room.invulnPowerupTaken;
+      const hasAutofire = room.autofirePowerupActive && !room.autofirePowerupTaken;
+      if (hasHeal || hasPower || hasMaxHp || hasSpeed || hasInvuln || hasAutofire) {
         noStroke(); textSize(11); textAlign(CENTER, BOTTOM);
         if (hasMaxHp) {
           fill(C.COL_MAXHP_PICKUP);
@@ -1445,6 +1497,11 @@ const Renderer = {
           p.powerups.every(s => s !== null)
             ? text('INVENTORY FULL — press SPC to use a powerup', C.WIDTH / 2, C.HEIGHT - 12)
             : text('INVINCIBILITY — walk into pickup', C.WIDTH / 2, C.HEIGHT - 12);
+        } else if (hasAutofire) {
+          fill(C.COL_AUTOFIRE_PICKUP);
+          p.powerups.every(s => s !== null)
+            ? text('INVENTORY FULL — press SPC to use a powerup', C.WIDTH / 2, C.HEIGHT - 12)
+            : text('AUTOFIRE — walk into pickup', C.WIDTH / 2, C.HEIGHT - 12);
         } else if (p.powerups.every(s => s !== null)) {
           fill('#ff6644');
           text('INVENTORY FULL — press SPC to use a powerup', C.WIDTH / 2, C.HEIGHT - 12);
@@ -1610,11 +1667,12 @@ const Renderer = {
       const treasureTaken = room.type === 'treasure' && room.pickupTaken;
 
       // Detect uncollected powerups in this room (including non-treasure typed dead-ends)
-      const roomPowerup = !room.pickupTaken && room.type === 'treasure'   ? { col: C.COL_PICKUP,      label: 'HEAL' }
-                        : room.widePowerup  && !room.widePowerupTaken     ? { col: C.COL_WIDE_PICKUP,  label: 'PWR'  }
-                        : room.speedPowerup && !room.speedPowerupTaken    ? { col: C.COL_SPEED_PICKUP, label: 'SPD'  }
-                        : room.invulnPowerup && !room.invulnPowerupTaken  ? { col: C.COL_INVULN_PICKUP,label: 'INV'  }
-                        : room.maxhpPowerup  && !room.maxhpPowerupTaken   ? { col: C.COL_MAXHP_PICKUP, label: 'MXHP' }
+      const roomPowerup = !room.pickupTaken && room.type === 'treasure'        ? { col: C.COL_PICKUP,         label: 'HEAL' }
+                        : room.widePowerup     && !room.widePowerupTaken     ? { col: C.COL_WIDE_PICKUP,    label: 'PWR'  }
+                        : room.speedPowerup    && !room.speedPowerupTaken    ? { col: C.COL_SPEED_PICKUP,   label: 'SPD'  }
+                        : room.invulnPowerup   && !room.invulnPowerupTaken   ? { col: C.COL_INVULN_PICKUP,  label: 'INV'  }
+                        : room.autofirePowerup && !room.autofirePowerupTaken ? { col: C.COL_AUTOFIRE_PICKUP, label: 'ATF' }
+                        : room.maxhpPowerup    && !room.maxhpPowerupTaken    ? { col: C.COL_MAXHP_PICKUP,   label: 'MXHP' }
                         : null;
 
       const col = roomPowerup         ? roomPowerup.col

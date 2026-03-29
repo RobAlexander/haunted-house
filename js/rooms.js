@@ -129,18 +129,22 @@ class DungeonGraph {
         const wr   = remaining[randInt(0, remaining.length - 1)];
         const pick = Math.random();
         wr.cleared = true;
-        if (pick < 0.40) {
+        if (pick < 0.30) {
           wr.widePowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
           wr.widePowerupActive = false;
           wr.widePowerupTaken  = false;
-        } else if (pick < 0.70) {
+        } else if (pick < 0.55) {
           wr.speedPowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
           wr.speedPowerupActive = false;
           wr.speedPowerupTaken  = false;
-        } else {
+        } else if (pick < 0.77) {
           wr.invulnPowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
           wr.invulnPowerupActive = false;
           wr.invulnPowerupTaken  = false;
+        } else {
+          wr.autofirePowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+          wr.autofirePowerupActive = false;
+          wr.autofirePowerupTaken  = false;
         }
       }
       // Rarely place max-HP powerup in a third dead-end (instant collect, no inventory slot)

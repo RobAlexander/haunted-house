@@ -32,6 +32,7 @@ const G = {
   devConsole:      { open: false, input: '', output: '' },
   devFullMap:     false,
   symbolFlicker:  { timer: 0, col: '' },
+  freezeUntil:    0,   // performance.now() timestamp until which game logic is frozen
 };
 
 // ── Game lifecycle ────────────────────────────────────────────────────────
@@ -66,9 +67,10 @@ function nextFloor() {
   const savedScore      = G.score;
   const savedPowerups   = G.player ? [...G.player.powerups] : null;
   const savedPowerupIdx = G.player ? G.player.powerupIdx   : 0;
-  const savedWideShots  = G.player ? G.player.wideShots    : 0;
-  const savedSpeedTimer = G.player ? G.player.speedTimer   : 0;
-  const savedInvulnTimer= G.player ? G.player.invulnTimer  : 0;
+  const savedWideShots     = G.player ? G.player.wideShots     : 0;
+  const savedSpeedTimer    = G.player ? G.player.speedTimer    : 0;
+  const savedInvulnTimer   = G.player ? G.player.invulnTimer   : 0;
+  const savedAutofireShots = G.player ? G.player.autofireShots : 0;
   G.floor++;
   startGame();
   if (savedHp !== null) {
@@ -76,9 +78,10 @@ function nextFloor() {
     G.player.maxHp      = savedMaxHp;
     G.player.powerups    = savedPowerups;
     G.player.powerupIdx  = savedPowerupIdx;
-    G.player.wideShots   = savedWideShots;
-    G.player.speedTimer  = savedSpeedTimer;
-    G.player.invulnTimer = savedInvulnTimer;
+    G.player.wideShots     = savedWideShots;
+    G.player.speedTimer    = savedSpeedTimer;
+    G.player.invulnTimer   = savedInvulnTimer;
+    G.player.autofireShots = savedAutofireShots;
   }
   G.score = savedScore;
 }
@@ -137,6 +140,11 @@ function enterRoom(room, fromDir) {
   // Invuln powerup room
   if (room.invulnPowerup && !room.invulnPowerupTaken) {
     room.invulnPowerupActive = true;
+  }
+
+  // Autofire powerup room
+  if (room.autofirePowerup && !room.autofirePowerupTaken) {
+    room.autofirePowerupActive = true;
   }
 
   // Audio: boss mode toggle + room enter SFX
@@ -295,7 +303,7 @@ function checkRagSymbols() {
                     s.x, s.y, C.RAG_SYMBOL_COLLECT_R)) {
     s.collected = true;
     G.ragCollected[s.letter] = true;
-    AudioEngine.playSFX('symbol_pickup');
+    AudioEngine.playSFX(ragAllCollected() ? 'final_symbol' : 'symbol_pickup');
     G.symbolFlicker.timer = C.SYMBOL_FLICKER_DURATION;
     G.symbolFlicker.col   = C.COL_RAG_SYMBOL;
   }
@@ -321,6 +329,18 @@ function checkInvulnPowerup() {
     if (!G.player.addPowerup('invuln')) return;
     room.invulnPowerupTaken  = true;
     room.invulnPowerupActive = false;
+    AudioEngine.playSFX('pickup');
+  }
+}
+
+function checkAutofirePowerup() {
+  const room = G.currentRoom;
+  if (!room || !room.autofirePowerupActive || room.autofirePowerupTaken) return;
+  const p = room.autofirePowerup;
+  if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, p.x, p.y, 14)) {
+    if (!G.player.addPowerup('autofire')) return;
+    room.autofirePowerupTaken  = true;
+    room.autofirePowerupActive = false;
     AudioEngine.playSFX('pickup');
   }
 }
