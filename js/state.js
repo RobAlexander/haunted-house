@@ -274,6 +274,9 @@ function tickCycleAnim() {
   G.player.pos.y += Math.sin(anim.walkAngle) * spd;
   G.player.angle  = anim.walkAngle;
 
+  // Start pastoral aftermath music exactly when the scene fades in (matches renderer BLACK_END=152)
+  if (t === 152) AudioEngine.startCycleCompleteMusic();
+
   // Ongoing particle spawn for first 90 frames
   if (t < 90 && t % 3 === 0) {
     for (let i = 0; i < 4; i++) _spawnCycleParticle();

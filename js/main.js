@@ -74,7 +74,7 @@ function draw() {
 
   // ── Active gameplay ──────────────────────────────────────────────────
 
-  if (!G.mapOpen && performance.now() >= G.freezeUntil) {
+  if (!G.mapOpen && !G.devConsole.open && performance.now() >= G.freezeUntil) {
     G.player.update(keys, mouseX / _scale, mouseY / _scale, G.currentRoom);
     if (mouseDown && G.player.autofireShots > 0) G.player.shoot(G.bullets);
 
@@ -174,7 +174,7 @@ function mouseReleased() {
 }
 
 const DEV_COMMANDS = [
-  'boss', 'fullmap', 'help', 'powerup', 'runvictory', 'setfloor', 'spawn_maxhp',
+  'boss', 'fullmap', 'help', 'iddqd', 'powerup', 'runvictory', 'setfloor', 'spawn_maxhp',
   'spawn_ghost', 'spawn_ghoul', 'spawn_ghoul_boss', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_demon', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
@@ -233,6 +233,11 @@ function _execDevCommand(cmd) {
       return G.player.addPowerup(name) ? `${name} added to inventory.` : 'Inventory full.';
     }
     return 'Usage: powerup <powershot|heal|speed|invuln|autofire|maxhp>';
+  }
+  if (cmd === 'iddqd') {
+    if (!G.player) return 'Start a game first.';
+    G.player.godMode = !G.player.godMode;
+    return `God mode: ${G.player.godMode ? 'ON' : 'OFF'}.`;
   }
   if (cmd === 'fullmap') {
     G.devFullMap = !G.devFullMap;

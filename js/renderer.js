@@ -1479,7 +1479,8 @@ const Renderer = {
     translate(px, py);
     rotate(a);
 
-    noFill(); stroke(C.COL_PLAYER); strokeWeight(1.5);
+    const playerCol = player.godMode ? '#ffd700' : C.COL_PLAYER;
+    noFill(); stroke(playerCol); strokeWeight(1.5);
 
     // Body: per-instance irregular spline
     const bp = player.bodyPts, bn = bp.length;
@@ -1504,7 +1505,7 @@ const Renderer = {
     line(-2, 7, 26, 7);
 
     // Arms: each has one joint; grip endpoints are fixed on the gun
-    stroke(C.COL_PLAYER); strokeWeight(1.5);
+    stroke(playerCol); strokeWeight(1.5);
     const [rjx, rjy] = player.rearArmJoint;
     line(3, 9, rjx, rjy);  strokeWeight(2.5); point(rjx, rjy);  strokeWeight(1.5);
     line(rjx, rjy, 6, 7);
@@ -2112,57 +2113,70 @@ const Renderer = {
   _drawVictoryScene() {
     const W = C.WIDTH, H = C.HEIGHT;
 
-    // Sky
-    noStroke(); fill(C.COL_BG);
-    rect(0, 0, W, H);
-
-    // Stars — fixed deterministic positions
+    // ── Sky — pale blue gradient, lighter near horizon ──
     noStroke();
-    for (let i = 0; i < 32; i++) {
-      const sx = ((i * 127 + 53) % 740) + 30;
-      const sy = ((i * 83  + 17) % 205) + 12;
-      drawingContext.globalAlpha = 0.18 + (i % 5) * 0.09;
-      fill('#ffffff');
-      circle(sx, sy, 1 + (i % 3) * 0.7);
+    for (let i = 0; i < 12; i++) {
+      const t = i / 11;
+      fill(Math.round(158 + t * 34), Math.round(192 + t * 24), Math.round(218 + t * 16));
+      rect(0, i * (H / 12), W, Math.ceil(H / 12) + 1);
     }
-    drawingContext.globalAlpha = 1;
 
-    // Moon crescent — ivory disc with COL_BG bite
+    // Sun — soft muted yellow, upper-left
     noStroke();
-    drawingContext.globalAlpha = 0.76;
-    fill('#c8be78'); circle(668, 74, 44);
-    fill(C.COL_BG);  circle(682, 68, 38);
+    drawingContext.globalAlpha = 0.28;
+    fill('#ede0a0'); circle(115, 68, 104);
+    drawingContext.globalAlpha = 0.65;
+    fill('#e8d070'); circle(115, 68, 66);
     drawingContext.globalAlpha = 1;
 
-    // Hill silhouette — filled dark polygon
-    const hillPts = [
-      [0,   510], [70,  492], [150, 463], [240, 422],
-      [320, 360], [378, 295], [415, 232], [440, 178],
-      [462, 182], [510, 218], [580, 286], [658, 353],
-      [740, 413], [800, 458],
+    // Clouds — soft overlapping ellipses
+    noStroke(); fill('#dce8f4');
+    drawingContext.globalAlpha = 0.62;
+    ellipse(590, 52, 108, 32); ellipse(622, 42, 84, 30); ellipse(558, 48, 72, 24);
+    ellipse(312, 78, 88, 26);  ellipse(342, 70, 74, 24); ellipse(285, 74, 60, 20);
+    ellipse(728, 96, 68, 20);  ellipse(752, 89, 52, 18);
+    drawingContext.globalAlpha = 1;
+
+    // ── Hill — muted grass green with flat plateau at y=178 ──
+    // Plateau spans x=328..570 (wider than house footprint 346..552)
+    const leftSlope = [
+      [0, 524], [58, 506], [122, 480], [192, 448],
+      [256, 408], [304, 364], [320, 318], [327, 268], [328, 178],
     ];
-    noStroke(); fill('#111820');
+    const rightSlope = [
+      [570, 178], [578, 210], [602, 252], [638, 300],
+      [684, 354], [734, 402], [784, 440], [800, 452],
+    ];
+
+    noStroke(); fill('#82985c');
     beginShape();
     vertex(0, H);
-    for (const [hx, hy] of hillPts) vertex(hx, hy);
+    for (const [hx, hy] of leftSlope)  vertex(hx, hy);
+    for (const [hx, hy] of rightSlope) vertex(hx, hy);
     vertex(W, H);
     endShape(CLOSE);
 
-    // Hill edge highlight
-    noFill(); stroke('#243040'); strokeWeight(1.5);
+    // Hill edge — left slope
+    noFill(); stroke('#4e6c30'); strokeWeight(1.5);
     beginShape();
-    curveVertex(hillPts[0][0], hillPts[0][1]);
-    for (const [hx, hy] of hillPts) curveVertex(hx, hy);
-    curveVertex(hillPts[hillPts.length - 1][0], hillPts[hillPts.length - 1][1]);
+    curveVertex(leftSlope[0][0], leftSlope[0][1]);
+    for (const [hx, hy] of leftSlope) curveVertex(hx, hy);
+    curveVertex(328, 178);
+    endShape();
+    // Hill edge — right slope
+    beginShape();
+    curveVertex(570, 178);
+    for (const [hx, hy] of rightSlope) curveVertex(hx, hy);
+    curveVertex(rightSlope[rightSlope.length - 1][0], rightSlope[rightSlope.length - 1][1]);
     endShape();
 
     // ── Ruins of the great house ──────────────────────────────────
-    // Hill peak ~(440, 178); all ruin coords relative to (rpx, rpy)
+    // House foundation sits on the flat plateau at y=178
     const rpx = 444, rpy = 178;
-    const rc = '#9a8fab';
+    const rc = '#c0a890';           // warm weathered stone
     noFill(); stroke(rc);
 
-    // Foundation — heavy base line
+    // Foundation
     strokeWeight(2.2);
     line(rpx - 98, rpy, rpx + 108, rpy);
     strokeWeight(1.4);
@@ -2171,21 +2185,19 @@ const Renderer = {
     line(rpx - 98, rpy,       rpx - 98, rpy - 102);
     line(rpx - 70, rpy,       rpx - 70, rpy - 92);
     line(rpx - 98, rpy - 102, rpx - 70, rpy - 102);
-    // Crenellations
-    line(rpx - 98, rpy - 102, rpx - 105, rpy - 112);
+    line(rpx - 98, rpy - 102, rpx - 105, rpy - 112);  // crenellations
     line(rpx - 91, rpy - 102, rpx - 87,  rpy - 114);
     line(rpx - 79, rpy - 102, rpx - 75,  rpy - 110);
-    // Windows
-    rect(rpx - 93, rpy - 83, 17, 13);
+    rect(rpx - 93, rpy - 83, 17, 13);                  // windows
     rect(rpx - 92, rpy - 58, 15, 10);
 
     // Central hall
     line(rpx - 32, rpy, rpx - 32, rpy - 76);
     line(rpx + 30, rpy, rpx + 30, rpy - 70);
-    line(rpx - 32, rpy - 76, rpx + 5, rpy - 76);  // partial back wall
-    rect(rpx - 28, rpy - 57, 19, 13);              // window
+    line(rpx - 32, rpy - 76, rpx + 5, rpy - 76);
+    rect(rpx - 28, rpy - 57, 19, 13);
 
-    // Chimney — tallest single element, still standing
+    // Chimney — tallest element
     strokeWeight(1.9);
     line(rpx + 7,  rpy,       rpx + 7,  rpy - 122);
     line(rpx + 22, rpy,       rpx + 22, rpy - 122);
@@ -2194,17 +2206,17 @@ const Renderer = {
     strokeWeight(1.4);
 
     // Right wing — more collapsed
-    line(rpx + 52,  rpy, rpx + 52,  rpy - 52);
-    line(rpx + 88,  rpy, rpx + 88,  rpy - 33);
-    line(rpx + 88,  rpy - 33, rpx + 108, rpy);    // collapsed wall
+    line(rpx + 52, rpy, rpx + 52, rpy - 52);
+    line(rpx + 88, rpy, rpx + 88, rpy - 33);
+    line(rpx + 88, rpy - 33, rpx + 108, rpy);
 
     // Fallen roof beams
-    stroke('#7a6e8a'); strokeWeight(1.2);
+    stroke('#b09870'); strokeWeight(1.2);
     line(rpx - 98, rpy - 88, rpx - 20, rpy - 60);
     line(rpx - 70, rpy - 73, rpx + 30, rpy - 52);
     line(rpx + 30, rpy - 58, rpx + 88, rpy - 28);
 
-    // Rubble at base
+    // Rubble
     stroke(rc); strokeWeight(1.0);
     for (const [ox, oy, w, h] of [
       [-88,-7,13,5], [-72,-5,9,4], [-52,-7,7,4],
@@ -2212,15 +2224,15 @@ const Renderer = {
       [ 92,-7, 8,4], [ -8,-6,8,4],
     ]) rect(rpx + ox, rpy + oy, w, h);
 
-    // ── Smoke wisps from chimney top ──────────────────────────────
+    // ── Smoke wisps from chimney ──────────────────────────────────
     noFill();
     const chx = rpx + 14, chy = rpy - 124;
     for (let i = 0; i < 3; i++) {
       const progress = ((G.frame + i * 43) % 130) / 130;
       const drift    = Math.sin(G.frame * 0.025 + i * 2.2) * 15 * progress;
-      drawingContext.globalAlpha = (1 - progress) * 0.30;
-      stroke('#4a5e70');
-      strokeWeight(1 + progress * 2.2);
+      drawingContext.globalAlpha = (1 - progress) * 0.38;
+      stroke('#b0bcc8');
+      strokeWeight(1 + progress * 2.5);
       bezier(chx, chy,
              chx + drift * 0.3, chy - 20 * progress,
              chx + drift * 0.7, chy - 44 * progress,
@@ -2233,36 +2245,43 @@ const Renderer = {
     const W = C.WIDTH, H = C.HEIGHT;
     textAlign(CENTER, CENTER);
     textFont('monospace');
+    const cx = W / 2;
 
-    // Title — just below the hill peak / foundation line (~y 178)
-    fill('#ff5500'); textSize(32);
-    text('THE HOUSE FALLS!', W / 2, 205);
+    // Faint dark wash so text reads against the green hill
+    noStroke();
+    drawingContext.globalAlpha = 0.36;
+    fill(0, 0, 0);
+    rect(0, 192, W, 218);
+    drawingContext.globalAlpha = 1;
+
+    // Title
+    fill('#ff7733'); textSize(32);
+    text('THE HOUSE FALLS!', cx, 212);
 
     // Flavour text
-    fill(C.COL_HUD_TEXT); textSize(11);
-    const cx = W / 2;
-    text('You have destroyed the haunted house. The land can now be used for',   cx, 244);
-    text('some affordable housing and a small supermarket. You can quit now',     cx, 258);
-    text('and have recognition for your high score (if competitive), or proceed', cx, 272);
-    text('to another house which, we are told, is even more haunted.',             cx, 286);
+    fill('#ddd8cc'); textSize(11);
+    text('You have destroyed the haunted house. The land can now be used for',   cx, 250);
+    text('some affordable housing and a small supermarket. You can quit now',     cx, 264);
+    text('and have recognition for your high score (if competitive), or proceed', cx, 278);
+    text('to another house which, we are told, is even more haunted.',             cx, 292);
 
     // Score
-    fill(C.COL_CLEARED); textSize(18);
-    text(`SCORE:  ${G.score}`, W / 2, 316);
+    fill('#f0e888'); textSize(18);
+    text(`SCORE:  ${G.score}`, cx, 320);
 
     // Key guide
     const pulse = 0.7 + 0.3 * Math.sin(G.frame * 0.06);
     drawingContext.globalAlpha = pulse;
-    fill(C.COL_HUD_TEXT); textSize(11);
-    text('─────────────────────────────────────', cx, 348);
-    fill(C.COL_WIN); textSize(13);
-    text('N', cx - 120, 368);
-    fill(C.COL_HUD_TEXT); textSize(12);
-    text('carry on into a new (harder) haunted house', cx + 30, 368);
-    fill(C.COL_WIN); textSize(13);
-    text('E  /  Esc', cx - 108, 388);
-    fill(C.COL_HUD_TEXT); textSize(12);
-    text('exit to menu and high score table', cx + 46, 388);
+    fill('#aaa890'); textSize(11);
+    text('─────────────────────────────────────', cx, 350);
+    fill('#88ffcc'); textSize(13);
+    text('N', cx - 120, 370);
+    fill('#ccccaa'); textSize(12);
+    text('carry on into a new (harder) haunted house', cx + 30, 370);
+    fill('#88ffcc'); textSize(13);
+    text('E  /  Esc', cx - 108, 390);
+    fill('#ccccaa'); textSize(12);
+    text('exit to menu and high score table', cx + 46, 390);
     drawingContext.globalAlpha = 1;
   },
 

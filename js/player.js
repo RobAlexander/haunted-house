@@ -7,6 +7,7 @@ class Player {
     this.fireCooldown     = 0;
     this.radius           = C.PLAYER_RADIUS;
     this.invincibleFrames = 0;
+    this.godMode   = false;
     this.alive     = true;
     this.wideShots = 0;
     this.powerups    = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|'speed'|'invuln'|'autofire'|null)
@@ -172,7 +173,7 @@ class Player {
   }
 
   takeDamage(amount) {
-    if (this.invincibleFrames > 0 || this.invulnTimer > 0) return;
+    if (this.godMode || this.invincibleFrames > 0 || this.invulnTimer > 0) return;
     const scaled = amount * C.MASTER_DAMAGE_MULT * (1 + ((G.floor || 1) - 1) * C.FLOOR_DAMAGE_BONUS);
     this.hp -= scaled;
     this.invincibleFrames = C.PLAYER_INVINCIBLE_FRAMES;

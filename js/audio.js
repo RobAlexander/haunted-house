@@ -19,6 +19,12 @@ const AudioEngine = (() => {
   let melodyTimeout = null;
   let bossMode      = false;
   let mummyBossMode = false;
+  let cycleCompleteMode = false;
+
+  // Cycle-complete ambient nodes
+  let windSrc  = null;
+  let windGain = null;
+  let birdTimeout = null;
 
   // ── Init ────────────────────────────────────────────────────────────────
 
@@ -101,19 +107,23 @@ const AudioEngine = (() => {
   }
 
   function stopMusic() {
-    if (!musicRunning) return;
-    musicRunning  = false;
-    bossMode      = false;
-    mummyBossMode = false;
-    victoryMode   = false;
+    if (!musicRunning && !cycleCompleteMode) return;
+    musicRunning      = false;
+    bossMode          = false;
+    mummyBossMode     = false;
+    victoryMode       = false;
+    cycleCompleteMode = false;
 
     clearTimeout(melodyTimeout);
+    clearTimeout(birdTimeout);
     melodyTimeout = null;
+    birdTimeout   = null;
 
-    try {
-      drone1.stop(); drone2.stop(); lfo.stop();
-    } catch (e) {}
+    try { drone1.stop(); drone2.stop(); lfo.stop(); } catch (e) {}
     drone1 = drone2 = lfo = droneGain = droneFilter = lfoGain = null;
+
+    if (windSrc)  { try { windSrc.stop(); } catch (e) {} windSrc  = null; }
+    windGain = null;
   }
 
   // Post-boss victory music: calmer, brighter, slightly upbeat
@@ -163,6 +173,110 @@ const AudioEngine = (() => {
     _scheduleMelodyNote();
   }
 
+  // Pastoral aftermath music: gentle drone, wind, bird chirps, slow bell melody
+  function startCycleCompleteMusic() {
+    if (!ctx) return;
+    stopMusic();
+    musicRunning      = true;
+    cycleCompleteMode = true;
+
+    // Drone: gentle sine major-third (C3 + E3) — open, warm
+    droneFilter = ctx.createBiquadFilter();
+    droneFilter.type            = 'lowpass';
+    droneFilter.frequency.value = 1400;
+    droneFilter.Q.value         = 0.4;
+
+    droneGain = ctx.createGain();
+    droneGain.gain.value = 0.032;
+
+    drone1 = ctx.createOscillator();
+    drone1.type            = 'sine';
+    drone1.frequency.value = 130.8;   // C3
+    drone1.connect(droneFilter);
+
+    drone2 = ctx.createOscillator();
+    drone2.type            = 'sine';
+    drone2.frequency.value = 196.0;   // G3 (perfect fifth)
+    drone2.connect(droneFilter);
+
+    droneFilter.connect(droneGain);
+    droneGain.connect(reverb);
+    droneGain.connect(master);
+    drone1.start(); drone2.start();
+
+    // Very slow LFO — gentle breathing (0.18 Hz)
+    lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.014;
+    lfo = ctx.createOscillator();
+    lfo.type            = 'sine';
+    lfo.frequency.value = 0.18;
+    lfo.connect(lfoGain);
+    lfoGain.connect(droneGain.gain);
+    lfo.start();
+
+    // Wind: looping bandpass noise — very quiet breeze
+    const noiseLen  = Math.ceil(ctx.sampleRate * 3);
+    const noiseBuf  = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+    const noiseData = noiseBuf.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) noiseData[i] = Math.random() * 2 - 1;
+
+    windSrc        = ctx.createBufferSource();
+    windSrc.buffer = noiseBuf;
+    windSrc.loop   = true;
+
+    const windBP         = ctx.createBiquadFilter();
+    windBP.type          = 'bandpass';
+    windBP.frequency.value = 900;
+    windBP.Q.value         = 0.35;
+
+    windGain = ctx.createGain();
+    windGain.gain.value = 0.009;
+
+    windSrc.connect(windBP);
+    windBP.connect(windGain);
+    windGain.connect(master);
+    windSrc.start();
+
+    // Slow spacious melody + occasional bird chirps
+    _scheduleMelodyNote();
+    _scheduleBirdChirp();
+  }
+
+  function _scheduleBirdChirp() {
+    if (!cycleCompleteMode) return;
+    birdTimeout = setTimeout(() => {
+      if (!cycleCompleteMode) return;
+      _playBirdChirp();
+      _scheduleBirdChirp();
+    }, 4000 + Math.random() * 9000);
+  }
+
+  function _playBirdChirp() {
+    if (!ctx) return;
+    const now    = ctx.currentTime;
+    const baseF  = 820 + Math.random() * 500;
+    const vol    = 0.035 + Math.random() * 0.025;
+    // Two quick ascending notes
+    for (let i = 0; i < 2; i++) {
+      const f     = i === 0 ? baseF : baseF * (1.22 + Math.random() * 0.18);
+      const t     = now + i * (0.08 + Math.random() * 0.04);
+      const dur   = 0.06 + Math.random() * 0.05;
+      const osc   = ctx.createOscillator();
+      const gain  = ctx.createGain();
+      osc.type    = 'sine';
+      osc.frequency.setValueAtTime(f, t);
+      osc.frequency.exponentialRampToValueAtTime(f * 1.06, t + dur);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(vol, t + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain);
+      gain.connect(reverb);
+      gain.connect(master);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    }
+  }
+
   function setBossMode(active, isMummy) {
     if (!ctx || !lfo) return;
     bossMode      = active;
@@ -189,17 +303,20 @@ const AudioEngine = (() => {
   }
 
   // F# minor pentatonic (eerie — normal + skull boss)
-  const PENTATONIC  = [185, 220, 247, 277, 370, 440, 494, 554];
+  const PENTATONIC       = [185, 220, 247, 277, 370, 440, 494, 554];
   // C major pentatonic (bright — post-boss victory)
-  const MAJOR_PENT  = [261, 329, 392, 440, 523, 659, 784];
+  const MAJOR_PENT       = [261, 329, 392, 440, 523, 659, 784];
   // D diminished / chromatic (dark, dissonant — mummy boss)
-  const MUMMY_SCALE = [146, 155, 174, 196, 207, 233, 277, 311];
+  const MUMMY_SCALE      = [146, 155, 174, 196, 207, 233, 277, 311];
+  // C major, multi-octave (pastoral — cycle-complete aftermath)
+  const CYCLE_VICTORY_SCALE = [261, 294, 329, 392, 440, 523, 587, 659, 784, 880];
 
   function _scheduleMelodyNote() {
     if (!musicRunning) return;
-    const delay = victoryMode    ? 900  + Math.random() * 2200
-                : mummyBossMode  ? 3500 + Math.random() * 8000
-                :                  2000 + Math.random() * 6000;
+    const delay = cycleCompleteMode ? 2000 + Math.random() * 4000
+                : victoryMode       ? 900  + Math.random() * 2200
+                : mummyBossMode     ? 3500 + Math.random() * 8000
+                :                     2000 + Math.random() * 6000;
     melodyTimeout = setTimeout(() => {
       if (!musicRunning) return;
       _playMelodyNote();
@@ -209,21 +326,27 @@ const AudioEngine = (() => {
 
   function _playMelodyNote() {
     if (!ctx) return;
-    const scale  = victoryMode   ? MAJOR_PENT
-                 : mummyBossMode ? MUMMY_SCALE
-                 :                 PENTATONIC;
+    const scale  = cycleCompleteMode ? CYCLE_VICTORY_SCALE
+                 : victoryMode       ? MAJOR_PENT
+                 : mummyBossMode     ? MUMMY_SCALE
+                 :                     PENTATONIC;
     const freq   = scale[Math.floor(Math.random() * scale.length)];
-    const type   = mummyBossMode ? 'sawtooth' : Math.random() < 0.5 ? 'sine' : 'triangle';
+    const type   = cycleCompleteMode ? 'sine'
+                 : mummyBossMode     ? 'sawtooth'
+                 : Math.random() < 0.5 ? 'sine' : 'triangle';
     const now    = ctx.currentTime;
-    const dur    = victoryMode    ? 0.18 + Math.random() * 0.28
-                 : mummyBossMode  ? 0.8  + Math.random() * 1.2
-                 :                  0.4  + Math.random() * 0.4;
-    const vol    = victoryMode ? 0.09 : mummyBossMode ? 0.045 : 0.06;
+    const dur    = cycleCompleteMode ? 0.6  + Math.random() * 1.0
+                 : victoryMode       ? 0.18 + Math.random() * 0.28
+                 : mummyBossMode     ? 0.8  + Math.random() * 1.2
+                 :                     0.4  + Math.random() * 0.4;
+    const vol    = cycleCompleteMode ? 0.055
+                 : victoryMode       ? 0.09
+                 : mummyBossMode     ? 0.045 : 0.06;
 
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type            = type;
-    // Skull boss: half-pitch; mummy boss: quarter-pitch (very low, ominous)
+    // Skull boss: half-pitch; mummy boss: quarter-pitch; cycle: no shift
     osc.frequency.value = freq * (mummyBossMode ? 0.25 : bossMode ? 0.5 : 1);
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(vol, now + 0.02);
@@ -1227,5 +1350,5 @@ const AudioEngine = (() => {
     if (ctx && ctx.state === 'suspended') ctx.resume();
   }
 
-  return { init, startMusic, stopMusic, startVictoryMusic, setBossMode, playSFX, playFlyBuzz, resumeIfSuspended };
+  return { init, startMusic, stopMusic, startVictoryMusic, startCycleCompleteMusic, setBossMode, playSFX, playFlyBuzz, resumeIfSuspended };
 })();
