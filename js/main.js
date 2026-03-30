@@ -174,7 +174,7 @@ function mouseReleased() {
 }
 
 const DEV_COMMANDS = [
-  'boss', 'fullmap', 'help', 'powerup', 'setfloor', 'spawn_maxhp',
+  'boss', 'fullmap', 'help', 'powerup', 'runvictory', 'setfloor', 'spawn_maxhp',
   'spawn_ghost', 'spawn_ghoul', 'spawn_ghoul_boss', 'spawn_long_ghoul', 'spawn_mummy', 'spawn_demon', 'spawn_red_ghost', 'spawn_skull', 'spawn_white_skull',
 ];
 
@@ -255,6 +255,12 @@ function _execDevCommand(cmd) {
     const speedMult  = Math.min(C.FLOOR_SPEED_CAP, 1 + (f-1)*C.FLOOR_SPEED_BONUS);
     const damageMult = 1 + (f-1)*C.FLOOR_DAMAGE_BONUS;
     return `Floor set to ${f} (speed ×${speedMult.toFixed(2)}, damage ×${damageMult.toFixed(2)}).`;
+  }
+  if (cmd === 'runvictory') {
+    if (!G.player || !G.currentRoom) return 'Start a game first.';
+    if (!G.currentRoom.stairwell) G.currentRoom.stairwell = 'east';
+    cycleComplete();
+    return 'Victory sequence started.';
   }
   if (cmd === 'spawn_demon') return _devSpawn(DemonEnemy);
   if (cmd === 'spawn_maxhp') {

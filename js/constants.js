@@ -244,7 +244,7 @@ const C = {
   ASHTAROTH_BARRAGE_RATE:         290,   // frames between barrages (phase 2+)
   ASHTAROTH_BARRAGE_COUNT_2:        8,
   ASHTAROTH_BARRAGE_COUNT_3:       12,
-  ASHTAROTH_TRAIL_LIFETIME:       700,   // boss's personal trail particle lifetime
+  ASHTAROTH_TRAIL_LIFETIME:       360,   // boss's personal trail particle lifetime
   ASHTAROTH_TRAIL_INTERVAL:         3,   // frames between trail spawns
   ASHTAROTH_TRAIL_DAMAGE:          10,
   ASHTAROTH_TRAIL_DAMAGE_INTERVAL:  8,

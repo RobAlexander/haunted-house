@@ -1022,6 +1022,8 @@ class MummyEnemy {
     this.flyTimer        = C.MUMMY_FLY_COOLDOWN;
     this.mouthOpen       = 0;  // frames of mouth-open animation
     this.wrappingPhase   = randFloat(0, Math.PI * 2);
+    // Per-instance shape deformation (6 values, range -1..1)
+    this.deform = Array.from({ length: 6 }, () => randFloat(-1, 1));
   }
 
   update(player, room) {
@@ -1123,6 +1125,8 @@ class MummyBossEnemy {
     this.wrappingPhase  = 0;
     this.contactCooldown = 0;
     this.minionTimer    = 300;  // frames after rising until first minion spawn
+    // Per-instance shape deformation (6 values, range -1..1)
+    this.deform = Array.from({ length: 6 }, () => randFloat(-1, 1));
   }
 
   get flyConfig() {
@@ -1627,6 +1631,8 @@ class AshtarothBossEnemy {
     this.arriving    = true;
     this.arriveTimer = 180;
     this.arriveAngle = 0;
+    // Per-instance shape deformation (6 values, range -1..1)
+    this.deform = Array.from({ length: 6 }, () => randFloat(-1, 1));
     AudioEngine.playSFX('skull_boss_arrive');
   }
 

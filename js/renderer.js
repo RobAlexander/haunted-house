@@ -894,21 +894,34 @@ const Renderer = {
     this._drawEnemyHP(e, x, y - hh - headR * 2 - 14);
   },
 
-  _drawMummyBody(x, ry, col, scale, mouthOpen) {
-    // Body — rectangular, bandage-wrapped
-    const bw = 11 * scale, bh = 30 * scale;
+  _drawMummyBody(x, ry, col, scale, mouthOpen, deform) {
+    const d = deform || [0, 0, 0, 0, 0, 0];
+    // Body — slightly deformed quad, bandage-wrapped
+    const bw = (11 + d[0] * 1.5) * scale, bh = 30 * scale;
+    const bodyT = ry - 20 * scale, bodyB = bodyT + bh;
     noFill(); stroke(col); strokeWeight(1.5);
-    rect(x - bw, ry - 20 * scale, bw * 2, bh, 2);
+    beginShape();
+    vertex(x - bw + d[1] * 1.5 * scale, bodyT + d[2] * 1.5 * scale);
+    vertex(x + bw + d[3] * 1.5 * scale, bodyT + d[4] * 1.5 * scale);
+    vertex(x + bw + d[5] * 1.2 * scale, bodyB);
+    vertex(x - bw - d[2] * 1.2 * scale, bodyB);
+    endShape(CLOSE);
     // Horizontal bandage strips on body
     strokeWeight(0.7);
     for (let i = 1; i < 4; i++) {
-      const by2 = ry - 20 * scale + i * 7 * scale;
+      const by2 = bodyT + i * 7 * scale;
       line(x - bw, by2, x + bw, by2);
     }
-    // Head — rounded rect
-    const hw = 9 * scale, hh = 15 * scale;
+    // Head — slightly deformed quad
+    const hw = (9 + d[1] * 1.2) * scale, hh = (15 + d[0] * 1.0) * scale;
+    const headT = ry - 38 * scale;
     strokeWeight(1.5);
-    rect(x - hw, ry - 38 * scale, hw * 2, hh, 2);
+    beginShape();
+    vertex(x - hw + d[2] * 1.2 * scale, headT + d[3] * 1.0 * scale);
+    vertex(x + hw + d[4] * 1.2 * scale, headT + d[5] * 1.0 * scale);
+    vertex(x + hw - d[0] * 1.0 * scale, headT + hh);
+    vertex(x - hw + d[1] * 1.0 * scale, headT + hh);
+    endShape(CLOSE);
     // Bandage cross on head
     strokeWeight(0.7);
     line(x - hw, ry - 31 * scale, x + hw, ry - 31 * scale);
@@ -919,13 +932,17 @@ const Renderer = {
       const mw = 5 * scale * mo, mhh = 3 * scale * mo;
       rect(x - mw, ry - 26 * scale, mw * 2, mhh, 1);
     }
-    // Arms — raised, undead pose
+    // Arms — raised, undead pose with per-instance jitter on elbow/wrist
     stroke(col); strokeWeight(1.5);
     const sw = Math.sin(G.frame * 0.03) * 1.5;
-    line(x - bw, ry - 14 * scale, x - 22 * scale, ry - 12 * scale + sw);
-    line(x - 22 * scale, ry - 12 * scale + sw, x - 26 * scale, ry - 5 * scale + sw);
-    line(x + bw, ry - 14 * scale, x + 22 * scale, ry - 12 * scale - sw);
-    line(x + 22 * scale, ry - 12 * scale - sw, x + 26 * scale, ry - 5 * scale - sw);
+    const lEx = x - 22 * scale + d[3] * 1.5 * scale;
+    const lEy = ry - 12 * scale + sw + d[4] * 1.5 * scale;
+    const rEx = x + 22 * scale + d[5] * 1.5 * scale;
+    const rEy = ry - 12 * scale - sw + d[0] * 1.5 * scale;
+    line(x - bw, ry - 14 * scale, lEx, lEy);
+    line(lEx, lEy, lEx - 4 * scale + d[1] * 1.5 * scale, ry - 5 * scale + sw);
+    line(x + bw, ry - 14 * scale, rEx, rEy);
+    line(rEx, rEy, rEx + 4 * scale + d[2] * 1.5 * scale, ry - 5 * scale - sw);
   },
 
   _drawMummy(e) {
@@ -937,7 +954,7 @@ const Renderer = {
     // Alpha: fades in during rising, full after
     drawingContext.globalAlpha = 0.15 + 0.85 * riseFrac;
 
-    this._drawMummyBody(x, ry, col, 1.0, e.mouthOpen);
+    this._drawMummyBody(x, ry, col, 1.0, e.mouthOpen, e.deform);
 
     // Eyes — green glow, brighter after risen
     noStroke(); fill(C.COL_FLY);
@@ -1012,7 +1029,7 @@ const Renderer = {
     }
 
     drawingContext.globalAlpha = 0.15 + 0.85 * riseFrac;
-    this._drawMummyBody(x, ry, col, sc, e.mouthOpen);
+    this._drawMummyBody(x, ry, col, sc, e.mouthOpen, e.deform);
 
     // Eyes — bigger, phase-coloured
     const eyeCol  = e.phase === 3 ? '#ff4444' : e.phase === 2 ? '#ffaa00' : C.COL_FLY;
@@ -1317,26 +1334,30 @@ const Renderer = {
       drawingContext.globalAlpha = 1;
     }
 
-    const bodyW = r * 1.1, bodyH = r * 0.9;
+    const d = e.deform || [0, 0, 0, 0, 0, 0];
+    const bodyW = r * (1.1 + d[0] * 0.07), bodyH = r * (0.9 + d[1] * 0.06);
 
     // Wings — two large curved bat wings extending to sides
     const wFlap = Math.sin(G.frame * 0.06) * 0.12;
+    // Per-instance wing reach and droop variation
+    const wReach = 3.2 + d[2] * 0.18, wTip = 2.2 + d[3] * 0.14;
+    const wDroop = 0.3 + d[4] * 0.10, wFold = 2.5 + d[5] * 0.12;
     noFill(); stroke(col); strokeWeight(1.5);
     // Left wing
     beginShape();
-    curveVertex(x - bodyW,       y);
-    curveVertex(x - r * 2.2,     y - r * 1.0 + wFlap * 20);
-    curveVertex(x - r * 3.2,     y + r * 0.3 + wFlap * 15);
-    curveVertex(x - r * 2.5,     y + r * 0.8);
-    curveVertex(x - bodyW,       y + r * 0.4);
+    curveVertex(x - bodyW,          y);
+    curveVertex(x - r * wTip,       y - r * 1.0 + wFlap * 20);
+    curveVertex(x - r * wReach,     y + r * wDroop + wFlap * 15);
+    curveVertex(x - r * wFold,      y + r * 0.8);
+    curveVertex(x - bodyW,          y + r * 0.4);
     endShape();
     // Right wing (mirrored)
     beginShape();
-    curveVertex(x + bodyW,       y);
-    curveVertex(x + r * 2.2,     y - r * 1.0 + wFlap * 20);
-    curveVertex(x + r * 3.2,     y + r * 0.3 + wFlap * 15);
-    curveVertex(x + r * 2.5,     y + r * 0.8);
-    curveVertex(x + bodyW,       y + r * 0.4);
+    curveVertex(x + bodyW,          y);
+    curveVertex(x + r * wTip,       y - r * 1.0 + wFlap * 20);
+    curveVertex(x + r * wReach,     y + r * wDroop + wFlap * 15);
+    curveVertex(x + r * wFold,      y + r * 0.8);
+    curveVertex(x + bodyW,          y + r * 0.4);
     endShape();
     // Wing membrane ribs
     strokeWeight(0.8);
@@ -1344,22 +1365,38 @@ const Renderer = {
     for (let i = 1; i <= 3; i++) {
       const t = i / 4;
       line(x - bodyW, y + r * 0.1,
-           x - bodyW - (r * 2.2 - bodyW) * t, y - r * 0.7 * t + wFlap * 20 * t);
+           x - bodyW - (r * wTip - bodyW) * t, y - r * 0.7 * t + wFlap * 20 * t);
       line(x + bodyW, y + r * 0.1,
-           x + bodyW + (r * 2.2 - bodyW) * t, y - r * 0.7 * t + wFlap * 20 * t);
+           x + bodyW + (r * wTip - bodyW) * t, y - r * 0.7 * t + wFlap * 20 * t);
     }
     drawingContext.globalAlpha = 1;
 
-    // Head/body — wide oval
+    // Head/body — organic spline blob: 8 radially-displaced control points
+    const bodyPts = [];
+    for (let i = 0; i < 8; i++) {
+      const ang  = (Math.PI * 2 / 8) * i;
+      const rOff = d[i % 6] * 5;
+      bodyPts.push([
+        x + (bodyW + rOff) * Math.cos(ang),
+        y + (bodyH + rOff * 0.8) * Math.sin(ang),
+      ]);
+    }
     fill(C.COL_BG); stroke(col); strokeWeight(1.8 + e.phase * 0.4);
-    ellipse(x, y, bodyW * 2, bodyH * 2);
+    beginShape();
+    curveVertex(bodyPts[7][0], bodyPts[7][1]);
+    for (const [bx, by] of bodyPts) curveVertex(bx, by);
+    curveVertex(bodyPts[0][0], bodyPts[0][1]);
+    curveVertex(bodyPts[1][0], bodyPts[1][1]);
+    endShape();
 
-    // Horns
+    // Horns — per-instance tip offsets
+    const lhTipX = x - r * (0.65 + d[2] * 0.07), lhTipY = y - bodyH * (1.85 + d[3] * 0.12);
+    const rhTipX = x + r * (0.65 + d[4] * 0.07), rhTipY = y - bodyH * (1.85 + d[5] * 0.12);
     strokeWeight(2); stroke(col); noFill();
-    line(x - r * 0.4, y - bodyH * 0.85, x - r * 0.65, y - bodyH * 1.85);
-    line(x - r * 0.65, y - bodyH * 1.85, x - r * 0.35, y - bodyH * 1.5);
-    line(x + r * 0.4, y - bodyH * 0.85, x + r * 0.65, y - bodyH * 1.85);
-    line(x + r * 0.65, y - bodyH * 1.85, x + r * 0.35, y - bodyH * 1.5);
+    line(x - r * 0.4, y - bodyH * 0.85, lhTipX, lhTipY);
+    line(lhTipX, lhTipY, x - r * (0.35 + d[0] * 0.05), y - bodyH * 1.5);
+    line(x + r * 0.4, y - bodyH * 0.85, rhTipX, rhTipY);
+    line(rhTipX, rhTipY, x + r * (0.35 + d[1] * 0.05), y - bodyH * 1.5);
 
     // Eye sockets
     const eyeCol = e.phase === 3 ? '#ffff00' : e.phase === 2 ? '#ff8800' : col;
@@ -1373,13 +1410,15 @@ const Renderer = {
     circle(x + r * 0.38, y - r * 0.1, r * 0.38);
     drawingContext.globalAlpha = 1;
 
-    // Maw — jagged open mouth
+    // Maw — jagged open mouth with per-instance tooth height variation
     strokeWeight(1.2); stroke(col); noFill();
-    const mw = r * 0.7, mTop = y + r * 0.22, mBot = y + r * 0.65;
+    const mw = r * 0.7, mTop = y + r * 0.22, mBot = y + r * (0.65 + d[2] * 0.08);
     for (let i = 0; i < 5; i++) {
       const t  = i / 4;
       const mx = x - mw + t * mw * 2;
-      line(mx, mTop, mx, i % 2 === 0 ? mBot : mTop + (mBot - mTop) * 0.45);
+      const toothBot = i % 2 === 0 ? mBot + d[(i + 3) % 6] * r * 0.07
+                                   : mTop + (mBot - mTop) * (0.45 + d[(i + 2) % 6] * 0.08);
+      line(mx, mTop, mx, toothBot);
     }
 
     if (!e.arriving) this._drawBossHP(e, col);
@@ -2000,88 +2039,223 @@ const Renderer = {
     if (!anim) return;
     const t = anim.timer;
 
-    // Screen shake offset
-    const sx = anim.shake > 0 ? (Math.random() - 0.5) * anim.shake : 0;
-    const sy = anim.shake > 0 ? (Math.random() - 0.5) * anim.shake : 0;
-    push(); translate(sx, sy);
+    const EXPL_END   = 100;  // explosion fades out; black overlay starts
+    const BLACK_END  = 152;  // fully black; aftermath scene starts fading in
+    const SCENE_END  = 225;  // aftermath scene fully visible
+    const TEXT_START = 235;  // text begins fading in
 
-    // Room fades out over first 70 frames
-    const roomAlpha = Math.max(0, 1 - t / 70);
-    if (roomAlpha > 0.01) {
-      drawingContext.globalAlpha = roomAlpha;
-      this.drawRoom(G.currentRoom);
+    // ── Phase 1: explosion ──────────────────────────────────────────
+    if (t < BLACK_END) {
+      const sx = anim.shake > 0 ? (Math.random() - 0.5) * anim.shake : 0;
+      const sy = anim.shake > 0 ? (Math.random() - 0.5) * anim.shake : 0;
+      push(); translate(sx, sy);
+
+      const roomAlpha = Math.max(0, 1 - t / 70);
+      if (roomAlpha > 0.01) {
+        drawingContext.globalAlpha = roomAlpha;
+        this.drawRoom(G.currentRoom);
+        drawingContext.globalAlpha = 1;
+      } else {
+        noStroke(); fill(C.COL_BG); rect(0, 0, C.WIDTH, C.HEIGHT);
+      }
+
+      noStroke();
+      for (const d of anim.debris) {
+        drawingContext.globalAlpha = d.life / d.maxLife;
+        fill(C.COL_HUD_TITLE);
+        push(); translate(d.x, d.y); rotate(d.rot);
+        rect(-d.w / 2, -d.h / 2, d.w, d.h);
+        pop();
+      }
       drawingContext.globalAlpha = 1;
-    } else {
-      noStroke(); fill(C.COL_BG); rect(0, 0, C.WIDTH, C.HEIGHT);
-    }
 
-    // Debris: flying wall chunks
-    noStroke();
-    for (const d of anim.debris) {
-      drawingContext.globalAlpha = d.life / d.maxLife;
-      fill(C.COL_HUD_TITLE);
-      push(); translate(d.x, d.y); rotate(d.rot);
-      rect(-d.w / 2, -d.h / 2, d.w, d.h);
+      noStroke();
+      for (const p of anim.particles) {
+        drawingContext.globalAlpha = (p.life / p.maxLife) * 0.9;
+        fill(p.col);
+        circle(p.x, p.y, p.r * 2);
+      }
+      drawingContext.globalAlpha = 1;
+
+      this.drawPlayer(G.player);
       pop();
-    }
-    drawingContext.globalAlpha = 1;
 
-    // Fire particles
+      if (t < 12) {
+        drawingContext.globalAlpha = (1 - t / 12) * 0.85;
+        noStroke(); fill(255, 255, 255);
+        rect(0, 0, C.WIDTH, C.HEIGHT);
+        drawingContext.globalAlpha = 1;
+      }
+
+      if (t > EXPL_END) {
+        drawingContext.globalAlpha = Math.min(1, (t - EXPL_END) / (BLACK_END - EXPL_END));
+        noStroke(); fill(0, 0, 0);
+        rect(0, 0, C.WIDTH, C.HEIGHT);
+        drawingContext.globalAlpha = 1;
+      }
+    }
+
+    // ── Phase 2: aftermath scene ────────────────────────────────────
+    if (t >= BLACK_END) {
+      drawingContext.globalAlpha = Math.min(1, (t - BLACK_END) / (SCENE_END - BLACK_END));
+      this._drawVictoryScene();
+      drawingContext.globalAlpha = 1;
+
+      if (t > TEXT_START) {
+        drawingContext.globalAlpha = Math.min(1, (t - TEXT_START) / 40);
+        this._drawVictoryText();
+        drawingContext.globalAlpha = 1;
+      }
+    }
+  },
+
+  _drawVictoryScene() {
+    const W = C.WIDTH, H = C.HEIGHT;
+
+    // Sky
+    noStroke(); fill(C.COL_BG);
+    rect(0, 0, W, H);
+
+    // Stars — fixed deterministic positions
     noStroke();
-    for (const p of anim.particles) {
-      drawingContext.globalAlpha = (p.life / p.maxLife) * 0.9;
-      fill(p.col);
-      circle(p.x, p.y, p.r * 2);
+    for (let i = 0; i < 32; i++) {
+      const sx = ((i * 127 + 53) % 740) + 30;
+      const sy = ((i * 83  + 17) % 205) + 12;
+      drawingContext.globalAlpha = 0.18 + (i % 5) * 0.09;
+      fill('#ffffff');
+      circle(sx, sy, 1 + (i % 3) * 0.7);
     }
     drawingContext.globalAlpha = 1;
 
-    // Player walking away
-    this.drawPlayer(G.player);
+    // Moon crescent — ivory disc with COL_BG bite
+    noStroke();
+    drawingContext.globalAlpha = 0.76;
+    fill('#c8be78'); circle(668, 74, 44);
+    fill(C.COL_BG);  circle(682, 68, 38);
+    drawingContext.globalAlpha = 1;
 
-    pop(); // end shake
+    // Hill silhouette — filled dark polygon
+    const hillPts = [
+      [0,   510], [70,  492], [150, 463], [240, 422],
+      [320, 360], [378, 295], [415, 232], [440, 178],
+      [462, 182], [510, 218], [580, 286], [658, 353],
+      [740, 413], [800, 458],
+    ];
+    noStroke(); fill('#111820');
+    beginShape();
+    vertex(0, H);
+    for (const [hx, hy] of hillPts) vertex(hx, hy);
+    vertex(W, H);
+    endShape(CLOSE);
 
-    // White flash at start
-    if (t < 12) {
-      drawingContext.globalAlpha = (1 - t / 12) * 0.85;
-      noStroke(); fill(255, 255, 255);
-      rect(0, 0, C.WIDTH, C.HEIGHT);
-      drawingContext.globalAlpha = 1;
+    // Hill edge highlight
+    noFill(); stroke('#243040'); strokeWeight(1.5);
+    beginShape();
+    curveVertex(hillPts[0][0], hillPts[0][1]);
+    for (const [hx, hy] of hillPts) curveVertex(hx, hy);
+    curveVertex(hillPts[hillPts.length - 1][0], hillPts[hillPts.length - 1][1]);
+    endShape();
+
+    // ── Ruins of the great house ──────────────────────────────────
+    // Hill peak ~(440, 178); all ruin coords relative to (rpx, rpy)
+    const rpx = 444, rpy = 178;
+    const rc = '#9a8fab';
+    noFill(); stroke(rc);
+
+    // Foundation — heavy base line
+    strokeWeight(2.2);
+    line(rpx - 98, rpy, rpx + 108, rpy);
+    strokeWeight(1.4);
+
+    // Left tower — tallest, most intact
+    line(rpx - 98, rpy,       rpx - 98, rpy - 102);
+    line(rpx - 70, rpy,       rpx - 70, rpy - 92);
+    line(rpx - 98, rpy - 102, rpx - 70, rpy - 102);
+    // Crenellations
+    line(rpx - 98, rpy - 102, rpx - 105, rpy - 112);
+    line(rpx - 91, rpy - 102, rpx - 87,  rpy - 114);
+    line(rpx - 79, rpy - 102, rpx - 75,  rpy - 110);
+    // Windows
+    rect(rpx - 93, rpy - 83, 17, 13);
+    rect(rpx - 92, rpy - 58, 15, 10);
+
+    // Central hall
+    line(rpx - 32, rpy, rpx - 32, rpy - 76);
+    line(rpx + 30, rpy, rpx + 30, rpy - 70);
+    line(rpx - 32, rpy - 76, rpx + 5, rpy - 76);  // partial back wall
+    rect(rpx - 28, rpy - 57, 19, 13);              // window
+
+    // Chimney — tallest single element, still standing
+    strokeWeight(1.9);
+    line(rpx + 7,  rpy,       rpx + 7,  rpy - 122);
+    line(rpx + 22, rpy,       rpx + 22, rpy - 122);
+    line(rpx + 7,  rpy - 122, rpx + 22, rpy - 122);
+    line(rpx + 7,  rpy - 110, rpx + 22, rpy - 110);
+    strokeWeight(1.4);
+
+    // Right wing — more collapsed
+    line(rpx + 52,  rpy, rpx + 52,  rpy - 52);
+    line(rpx + 88,  rpy, rpx + 88,  rpy - 33);
+    line(rpx + 88,  rpy - 33, rpx + 108, rpy);    // collapsed wall
+
+    // Fallen roof beams
+    stroke('#7a6e8a'); strokeWeight(1.2);
+    line(rpx - 98, rpy - 88, rpx - 20, rpy - 60);
+    line(rpx - 70, rpy - 73, rpx + 30, rpy - 52);
+    line(rpx + 30, rpy - 58, rpx + 88, rpy - 28);
+
+    // Rubble at base
+    stroke(rc); strokeWeight(1.0);
+    for (const [ox, oy, w, h] of [
+      [-88,-7,13,5], [-72,-5,9,4], [-52,-7,7,4],
+      [ 42,-6,10,4], [ 62,-8,7,5], [ 78,-5,11,4],
+      [ 92,-7, 8,4], [ -8,-6,8,4],
+    ]) rect(rpx + ox, rpy + oy, w, h);
+
+    // ── Smoke wisps from chimney top ──────────────────────────────
+    noFill();
+    const chx = rpx + 14, chy = rpy - 124;
+    for (let i = 0; i < 3; i++) {
+      const progress = ((G.frame + i * 43) % 130) / 130;
+      const drift    = Math.sin(G.frame * 0.025 + i * 2.2) * 15 * progress;
+      drawingContext.globalAlpha = (1 - progress) * 0.30;
+      stroke('#4a5e70');
+      strokeWeight(1 + progress * 2.2);
+      bezier(chx, chy,
+             chx + drift * 0.3, chy - 20 * progress,
+             chx + drift * 0.7, chy - 44 * progress,
+             chx + drift,       chy - 65 * progress);
     }
+    drawingContext.globalAlpha = 1;
+  },
 
-    // Text overlay fades in after t > 85
-    if (t > 85) {
-      const fadeIn = Math.min(1, (t - 85) / 35);
-      noStroke(); fill(0, 0, 0, Math.round(170 * fadeIn));
-      rect(0, 0, C.WIDTH, C.HEIGHT);
+  _drawVictoryText() {
+    const W = C.WIDTH, H = C.HEIGHT;
+    textAlign(CENTER, CENTER);
 
-      drawingContext.globalAlpha = fadeIn;
-      textAlign(CENTER, CENTER);
+    // Title — in the sky above the ruins
+    fill('#ff5500'); textFont('monospace'); textSize(36);
+    text('THE HOUSE FALLS!', W / 2, 50);
 
-      // Title
-      fill('#ff5500'); textFont('monospace'); textSize(40);
-      text('THE HOUSE FALLS!', C.WIDTH / 2, C.HEIGHT / 2 - 82);
+    // Flavour text
+    fill(C.COL_HUD_TEXT); textFont('monospace'); textSize(11);
+    const cx = W / 2;
+    text('You have destroyed the haunted house. The land can now be used for',   cx,  93);
+    text('some affordable housing and a small supermarket. You can quit now',     cx, 107);
+    text('and have recognition for your high score (if competitive), or proceed', cx, 121);
+    text('to another house which, we are told, is even more haunted.',             cx, 135);
 
-      // Cycle number
-      fill(C.COL_WIN); textSize(18);
-      text(`Boss cycle ${G.cyclesCompleted} complete`, C.WIDTH / 2, C.HEIGHT / 2 - 44);
+    // Score
+    fill(C.COL_CLEARED); textSize(18);
+    text(`SCORE:  ${G.score}`, W / 2, 158);
 
-      // HP penalty info
-      const mult = (1 + G.cyclesCompleted * 0.20).toFixed(1);
-      fill(C.COL_HUD_TEXT); textSize(13);
-      text(`All boss HP is now ×${mult}`, C.WIDTH / 2, C.HEIGHT / 2 - 18);
-
-      // Score
-      fill(C.COL_CLEARED); textSize(20);
-      text(`SCORE:  ${G.score}`, C.WIDTH / 2, C.HEIGHT / 2 + 14);
-
-      // Options
-      fill(C.COL_WIN); textSize(14);
-      text('N  —  Try again, harder', C.WIDTH / 2, C.HEIGHT / 2 + 50);
-      fill(C.COL_HUD_TEXT);
-      text('E  —  Exit  (high score table)', C.WIDTH / 2, C.HEIGHT / 2 + 72);
-
-      drawingContext.globalAlpha = 1;
-    }
+    // Options at bottom, pulsing gently
+    drawingContext.globalAlpha = 0.7 + 0.3 * Math.sin(G.frame * 0.06);
+    fill(C.COL_WIN); textSize(13);
+    text('N  —  try again in a new haunted house  (harder)', W / 2, H - 38);
+    fill(C.COL_HUD_TEXT); textSize(12);
+    text('E  —  exit  (high score table)', W / 2, H - 20);
+    drawingContext.globalAlpha = 1;
   },
 
   drawWin() {
