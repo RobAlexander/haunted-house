@@ -25,6 +25,7 @@ const G = {
   shieldSparks:   [],
   drops:          [],
   flies:          [],
+  meatLumps:      [],
   ragCollected:   Object.fromEntries(getFloorSymbols(1).map(l => [l, false])),
   mapOpen:        false,
   newHighScore:    null,   // 1-based rank of last score, or null
@@ -36,6 +37,7 @@ const G = {
   freezeUntil:    0,   // performance.now() timestamp until which game logic is frozen
   cyclesCompleted: 0,  // how many full boss cycles (skull→ghoul→mummy) the player has beaten this run
   cycleAnim:      null, // animation state while in CYCLE_COMPLETE state
+  screenShake:    0,   // pixels of random shake offset applied to all game rendering
 };
 
 // ── Game lifecycle ────────────────────────────────────────────────────────
@@ -50,6 +52,7 @@ function startGame() {
   G.shieldSparks   = [];
   G.drops          = [];
   G.flies          = [];
+  G.meatLumps      = [];
   G.ragCollected = Object.fromEntries(getFloorSymbols(G.floor).map(l => [l, false]));
   G.mapOpen         = false;
   G.newHighScore     = null;
@@ -58,6 +61,7 @@ function startGame() {
   G.symbolFlicker   = { timer: 0, col: '' };
   G.cyclesCompleted = 0;
   G.cycleAnim       = null;
+  G.screenShake     = 0;
   G.dungeon        = new DungeonGraph();
   G.bullets        = new BulletPool();
   G.player         = new Player(C.WIDTH / 2, C.HEIGHT / 2);
@@ -100,6 +104,7 @@ function enterRoom(room, fromDir) {
   G.bullets        = new BulletPool();
   G.drops          = [];
   G.flies          = [];
+  G.meatLumps      = [];
   G.shieldSparks   = [];
 
   // Compute player entry position first so spawn logic can exclude it
@@ -331,10 +336,10 @@ function checkRoomExit() {
   if (pl.pos.x < P            && rm.connections.west  && !_ragBlocked(rm.connections.west))  { startRoomTransition('west');  return; }
 
   // Stairwell: walk into it to advance to next floor
-  // On mummy-boss floors (floor % 3 === 0) a full cycle is complete — show the cycle screen instead.
+  // On Ashtaroth floors (floor % 4 === 0) a full cycle is complete — show the cycle screen instead.
   if (rm.stairwell) {
     const sw = rm.stairwell;
-    const _step = () => { if (G.floor % 3 === 0) cycleComplete(); else nextFloor(); };
+    const _step = () => { if (G.floor % 4 === 0) cycleComplete(); else nextFloor(); };
     if (sw === 'north' && pl.pos.y < P)            { _step(); return; }
     if (sw === 'south' && pl.pos.y > C.HEIGHT - P) { _step(); return; }
     if (sw === 'east'  && pl.pos.x > C.WIDTH  - P) { _step(); return; }
@@ -477,7 +482,9 @@ function tickParticles() {
 function checkInvulnerableRepulsion() {
   for (const e of G.enemies) {
     if (!e.alive) continue;
-    const isInvuln = ((e.type === 'boss' || e.type === 'ghoul_boss' || e.type === 'mummy_boss') && e.transitionTimer > 0) || e.shielded;
+    const isInvuln = ((e.type === 'boss' || e.type === 'ghoul_boss' || e.type === 'ashtaroth_boss') && e.arriving)
+                  || ((e.type === 'boss' || e.type === 'ghoul_boss' || e.type === 'mummy_boss' || e.type === 'ashtaroth_boss') && e.transitionTimer > 0)
+                  || e.shielded;
     if (!isInvuln) continue;
     const shieldR = (e.type === 'boss' && e.transitionTimer > 0) ? e.radius + 18 : e.radius + 12;
     for (const other of G.enemies) {

@@ -582,6 +582,8 @@ class WhiteSkullEnemy {
     this.shieldFreezeTimer = 0;
     this.fireTimer         = randInt(30, C.WHITE_SKULL_FIRE_RATE);
     this.facing      = 0;
+    this.strafeDir   = Math.random() < 0.5 ? 1 : -1;  // clockwise or counter-clockwise orbit
+    this.strafeFlopTimer = randInt(120, 240);           // frames until next direction flip
     this.deform      = Array.from({ length: 5 }, () => randFloat(-1, 1));
     // Slightly more angular skull shape than the regular skull
     this.headPts = Array.from({ length: 7 }, (_, i) => {
@@ -597,16 +599,43 @@ class WhiteSkullEnemy {
     if (!this.alive) return;
     if (this.shieldFreezeTimer > 0) { this.shieldFreezeTimer--; return; }
 
-    this.pos.x += this.vel.x;
-    if (Math.abs(this.pos.x - this.spawnX) > C.SKULL_PATROL_RANGE) this.vel.x *= -1;
+    // Orbit/kite: maintain ideal shooting distance, strafe when in range
+    const IDEAL  = 155;
+    const MARGIN = 35;
+    const spd    = C.WHITE_SKULL_SPEED * this.speedMult;
+    const dx = player.pos.x - this.pos.x, dy = player.pos.y - this.pos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / dist, ny = dy / dist;
+
+    this.strafeFlopTimer--;
+    if (this.strafeFlopTimer <= 0) {
+      this.strafeDir = -this.strafeDir;
+      this.strafeFlopTimer = randInt(120, 240);
+    }
+
+    let moveX, moveY;
+    if (dist > IDEAL + MARGIN) {
+      // Too far — close in
+      moveX = nx * spd; moveY = ny * spd;
+    } else if (dist < IDEAL - MARGIN) {
+      // Too close — back off
+      moveX = -nx * spd; moveY = -ny * spd;
+    } else {
+      // In the sweet spot — strafe perpendicular
+      moveX = -ny * spd * this.strafeDir;
+      moveY =  nx * spd * this.strafeDir;
+    }
+
+    this.pos.x += moveX;
+    this.pos.y += moveY;
 
     for (const w of getWallRects()) {
       const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, w.x, w.y, w.w, w.h);
-      if (push) { this.pos.x += push.x; this.pos.y += push.y; this.vel.x *= -1; }
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; }
     }
     for (const obs of room.obstacles) {
       const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, obs.x, obs.y, obs.w, obs.h);
-      if (push) { this.pos.x += push.x; this.pos.y += push.y; this.vel.x *= -1; }
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; }
     }
 
     this.facing = Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
@@ -684,6 +713,11 @@ class BossEnemy {
     this.minionTimer       = 240;  // frames until first skull minion spawn
     // Per-instance static deformation: radial offset per skull vertex (8 points)
     this.deform           = Array.from({ length: 8 }, () => randFloat(-1, 1));
+    // Arrival animation
+    this.arriving    = true;
+    this.arriveTimer = 180;  // 3 s at 60 fps
+    this.arriveAngle = 0;
+    AudioEngine.playSFX('skull_boss_arrive');
   }
 
   get speed() {
@@ -695,6 +729,14 @@ class BossEnemy {
 
   update(player, room) {
     if (!this.alive) return;
+
+    // Arrival animation — spin and grow from a point for 3 s, invulnerable
+    if (this.arriving) {
+      this.arriveAngle += (this.arriveTimer / 180) * 0.25;  // decelerating spin
+      this.arriveTimer--;
+      if (this.arriveTimer <= 0) this.arriving = false;
+      return;
+    }
 
     // Update phase; trigger invulnerability glow on transition
     const hpFrac = this.hp / this.maxHp;
@@ -812,7 +854,7 @@ class BossEnemy {
   }
 
   takeDamage(amount) {
-    if (this.transitionTimer > 0) return;
+    if (this.arriving || this.transitionTimer > 0) return;
     this.hp -= amount;
     if (this.hp <= 0) {
       this.hp    = 0;
@@ -1219,6 +1261,11 @@ class GhoulBossEnemy {
     this.minionTimer     = 300;
     this.crawlPhase      = randFloat(0, Math.PI * 2);
     this.eyeOff          = 5 + randFloat(0, 3);
+    // Arrival animation — Philip drops from the top of the screen
+    this.arriving        = true;
+    this.arriveTimer     = 180;
+    this.arriveTargetY   = y;
+    this.pos.y           = -C.GHOUL_BOSS_RADIUS - 30;  // start above screen
 
     this.bodyPts = Array.from({ length: 10 }, (_, i) => {
       const a  = (Math.PI * 2 / 10) * i;
@@ -1253,6 +1300,29 @@ class GhoulBossEnemy {
 
   update(player, room) {
     if (!this.alive) return;
+
+    // Arrival animation — Philip falls from above the screen and lands with a thud
+    if (this.arriving) {
+      this.arriveTimer--;
+      const elapsed   = 180 - this.arriveTimer;
+      const LAND_FRAME = 150;  // impact at frame 150 of 180 (~2.5 s); 30 f settling after
+      if (elapsed < LAND_FRAME) {
+        const t = elapsed / LAND_FRAME;
+        this.pos.y = (-C.GHOUL_BOSS_RADIUS - 30) + (this.arriveTargetY - (-C.GHOUL_BOSS_RADIUS - 30)) * t * t;
+      } else if (elapsed === LAND_FRAME) {
+        this.pos.y = this.arriveTargetY;
+        G.screenShake = 22;
+        AudioEngine.playSFX('ghoul_boss_land');
+      } else {
+        const sf = (elapsed - LAND_FRAME) / 30;
+        this.pos.y = this.arriveTargetY + Math.sin(sf * Math.PI) * 7 * (1 - sf);
+      }
+      if (this.arriveTimer <= 0) {
+        this.arriving = false;
+        this.pos.y = this.arriveTargetY;
+      }
+      return;
+    }
 
     const hpFrac = this.hp / this.maxHp;
     this.phase = hpFrac > 0.66 ? 1 : hpFrac > 0.33 ? 2 : 3;
@@ -1336,7 +1406,7 @@ class GhoulBossEnemy {
   }
 
   takeDamage(amount) {
-    if (this.transitionTimer > 0) return;
+    if (this.arriving || this.transitionTimer > 0) return;
     this.hp -= amount;
     if (this.hp <= 0) {
       this.hp = 0; this.alive = false;
@@ -1360,14 +1430,20 @@ function _clearBossMinions() {
 
 // ── Spawn helpers ─────────────────────────────────────────────────────────
 
-// Find a position for a boss minion: random direction from boss, clear of walls/obstacles.
+// Find a position for a boss minion: near the boss, never near the player, clear of walls/obstacles.
 function _bossMinionPos(bossX, bossY, radius) {
   const zone = _spawnZone(G.currentRoom);
-  for (let i = 0; i < 40; i++) {
+  const px = G.player.pos.x, py = G.player.pos.y;
+  const MIN_PLAYER_DIST = 110;  // minion must be at least this far from the player
+  const MIN_BOSS_DIST   = 50;   // minimum ring around boss
+  const MAX_BOSS_DIST   = 110;  // maximum ring around boss
+  for (let i = 0; i < 60; i++) {
     const a = randFloat(0, Math.PI * 2);
-    const d = 80 + Math.random() * 120;
+    const d = MIN_BOSS_DIST + Math.random() * (MAX_BOSS_DIST - MIN_BOSS_DIST);
     const x = Math.max(zone.minX, Math.min(zone.maxX, bossX + Math.cos(a) * d));
     const y = Math.max(zone.minY, Math.min(zone.maxY, bossY + Math.sin(a) * d));
+    const dx = x - px, dy = y - py;
+    if (dx * dx + dy * dy < MIN_PLAYER_DIST * MIN_PLAYER_DIST) continue;
     let blocked = false;
     for (const obs of G.currentRoom.obstacles) {
       if (circleRectCollide(x, y, radius + 8, obs.x, obs.y, obs.w, obs.h)) { blocked = true; break; }
@@ -1428,10 +1504,280 @@ function spawnSkulls(room, px, py) {
   return skulls;
 }
 
+// ── Meat Lump ─────────────────────────────────────────────────────────────
+// Projectiles fired by Ashtaroth.  big=true: slow arcing, leaves gas trail,
+// cannot be shot.  big=false: small barrage lumps, shootable by player.
+
+class MeatLump {
+  constructor(x, y, vx, vy, big) {
+    this.pos    = { x, y };
+    this.vel    = { x: vx, y: vy };
+    this.big    = big;
+    this.alive  = true;
+    this.radius = big ? C.ASHTAROTH_BIG_LUMP_RADIUS : C.ASHTAROTH_SMALL_LUMP_RADIUS;
+    this.damage = big ? C.ASHTAROTH_BIG_LUMP_DAMAGE  : C.ASHTAROTH_SMALL_LUMP_DAMAGE;
+    this.hp     = big ? Infinity : 1;
+    this.trailParticles    = [];
+    this.trailTimer        = 0;
+    this.trailDamageCooldown = 0;
+    this.lifetime          = 0;
+  }
+
+  update(player) {
+    if (!this.alive) return;
+    this.lifetime++;
+
+    // Big lumps: very slow homing drift toward player
+    if (this.big) {
+      const dx = player.pos.x - this.pos.x, dy = player.pos.y - this.pos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      this.vel.x += (dx / dist) * 0.014;
+      this.vel.y += (dy / dist) * 0.014;
+      // Cap speed
+      const spd = Math.sqrt(this.vel.x * this.vel.x + this.vel.y * this.vel.y);
+      const cap = C.ASHTAROTH_BIG_LUMP_SPEED * 1.5;
+      if (spd > cap) { this.vel.x = this.vel.x / spd * cap; this.vel.y = this.vel.y / spd * cap; }
+      // Expire after ~6 s
+      if (this.lifetime > 370) { this.alive = false; return; }
+    }
+
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+
+    // Kill if out of room bounds
+    if (this.pos.x < -30 || this.pos.x > C.WIDTH + 30 ||
+        this.pos.y < -30 || this.pos.y > C.HEIGHT + 30) {
+      this.alive = false; return;
+    }
+
+    // Gas trail for big lumps
+    if (this.big) {
+      this.trailTimer--;
+      if (this.trailTimer <= 0) {
+        this.trailTimer = 2;
+        this.trailParticles.push({
+          x: this.pos.x + randFloat(-5, 5),
+          y: this.pos.y + randFloat(-5, 5),
+          vx: randFloat(-0.2, 0.2),
+          vy: randFloat(-0.25, 0.05),
+          life: C.ASHTAROTH_BIG_LUMP_TRAIL_LIFE,
+          maxLife: C.ASHTAROTH_BIG_LUMP_TRAIL_LIFE,
+          size: 7 + randFloat(-2, 2),
+        });
+      }
+      for (let i = this.trailParticles.length - 1; i >= 0; i--) {
+        const p = this.trailParticles[i];
+        p.x += p.vx; p.y += p.vy;
+        p.vx += randFloat(-0.03, 0.03); p.vy += randFloat(-0.03, 0.03);
+        p.life--;
+        if (p.life <= 0) this.trailParticles.splice(i, 1);
+      }
+      // Trail damage (gated by its own cooldown, not invincibility frames)
+      if (this.trailDamageCooldown > 0) this.trailDamageCooldown--;
+      if (this.trailDamageCooldown === 0) {
+        for (const p of this.trailParticles) {
+          if (circleDist(player.pos.x, player.pos.y, p.x, p.y) < player.radius + p.size) {
+            player.takeDamage(C.ASHTAROTH_TRAIL_DAMAGE);
+            this.trailDamageCooldown = C.ASHTAROTH_TRAIL_DAMAGE_INTERVAL;
+            break;
+          }
+        }
+      }
+    }
+
+    // Contact damage — lump dissipates on hitting player
+    if (circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
+      player.takeDamage(this.damage);
+      this.alive = false;
+    }
+  }
+
+  takeDamage(amount) {
+    if (this.big) return;  // big lumps are invulnerable to player bullets
+    this.hp -= amount;
+    if (this.hp <= 0) { this.alive = false; AudioEngine.playSFX('hit'); }
+  }
+}
+
+// ── Ashtaroth Boss ────────────────────────────────────────────────────────
+
+class AshtarothBossEnemy {
+  constructor(x, y) {
+    this.pos             = { x, y };
+    this.vel             = { x: 0, y: 0 };
+    this.hp              = Math.round(C.ASHTAROTH_HP * _cycleHpMult());
+    this.maxHp           = this.hp;
+    this.radius          = C.ASHTAROTH_RADIUS;
+    this.type            = 'ashtaroth_boss';
+    this.scoreValue      = C.SCORE_ASHTAROTH;
+    this.alive           = true;
+    this.phase           = 1;
+    this.prevPhase       = 1;
+    this.transitionTimer = 0;
+    this.speedMult       = _floorMult(C.FLOOR_SPEED_BONUS, C.FLOOR_SPEED_CAP);
+    this.contactCooldown = 0;
+    this.lumpTimer       = 80;
+    this.barrageTimer    = C.ASHTAROTH_BARRAGE_RATE;
+    this.trailParticles  = [];
+    this.trailTimer      = 0;
+    this.trailDamageCooldown = 0;
+    this.erraticDir      = { x: 1, y: 0 };
+    this.erraticTimer    = 0;
+    // Arrival — spins in from a point (same as skull boss)
+    this.arriving    = true;
+    this.arriveTimer = 180;
+    this.arriveAngle = 0;
+    AudioEngine.playSFX('skull_boss_arrive');
+  }
+
+  get _speed() {
+    const b = this.phase === 3 ? C.ASHTAROTH_SPEED_3
+            : this.phase === 2 ? C.ASHTAROTH_SPEED_2
+            :                    C.ASHTAROTH_SPEED_1;
+    return b * this.speedMult;
+  }
+  get _lumpRate()  {
+    return this.phase === 3 ? C.ASHTAROTH_LUMP_RATE_3
+         : this.phase === 2 ? C.ASHTAROTH_LUMP_RATE_2
+         :                    C.ASHTAROTH_LUMP_RATE_1;
+  }
+  get _lumpCount() {
+    return this.phase === 3 ? C.ASHTAROTH_LUMP_COUNT_3
+         : this.phase === 2 ? C.ASHTAROTH_LUMP_COUNT_2
+         :                    C.ASHTAROTH_LUMP_COUNT_1;
+  }
+
+  update(player, room) {
+    if (!this.alive) return;
+
+    if (this.arriving) {
+      this.arriveAngle += (this.arriveTimer / 180) * 0.25;
+      this.arriveTimer--;
+      if (this.arriveTimer <= 0) this.arriving = false;
+      return;
+    }
+
+    const hpFrac = this.hp / this.maxHp;
+    this.phase = hpFrac > 0.66 ? 1 : hpFrac > 0.33 ? 2 : 3;
+    if (this.phase > this.prevPhase) {
+      this.transitionTimer = C.BOSS_PHASE_TRANSITION_FRAMES;
+      this.prevPhase = this.phase;
+      AudioEngine.playSFX('boss_phase');
+    }
+    if (this.transitionTimer > 0) { this.transitionTimer--; return; }
+
+    // Movement
+    if (this.phase < 3) {
+      const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      this.vel.x = n.x * this._speed; this.vel.y = n.y * this._speed;
+    } else {
+      this.erraticTimer--;
+      if (this.erraticTimer <= 0) {
+        const a = randFloat(0, Math.PI * 2);
+        this.erraticDir = { x: Math.cos(a), y: Math.sin(a) };
+        this.erraticTimer = randInt(15, 35);
+      }
+      this.vel.x = this.erraticDir.x * this._speed;
+      this.vel.y = this.erraticDir.y * this._speed;
+    }
+    this.pos.x += this.vel.x; this.pos.y += this.vel.y;
+    for (const w of getWallRects()) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, w.x, w.y, w.w, w.h);
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; }
+    }
+    for (const obs of room.obstacles) {
+      const push = resolveCircleRect(this.pos.x, this.pos.y, this.radius, obs.x, obs.y, obs.w, obs.h);
+      if (push) { this.pos.x += push.x; this.pos.y += push.y; }
+    }
+
+    // Spawn own trail (very long)
+    this.trailTimer--;
+    if (this.trailTimer <= 0) {
+      this.trailTimer = C.ASHTAROTH_TRAIL_INTERVAL;
+      this.trailParticles.push({
+        x: this.pos.x + randFloat(-7, 7), y: this.pos.y + randFloat(-7, 7),
+        vx: randFloat(-0.2, 0.2), vy: randFloat(-0.3, 0.05),
+        life: C.ASHTAROTH_TRAIL_LIFETIME, maxLife: C.ASHTAROTH_TRAIL_LIFETIME,
+        size: 9 + randFloat(-2, 3),
+      });
+    }
+    for (let i = this.trailParticles.length - 1; i >= 0; i--) {
+      const p = this.trailParticles[i];
+      p.x += p.vx; p.y += p.vy;
+      p.vx += randFloat(-0.03, 0.03); p.vy += randFloat(-0.03, 0.03);
+      p.life--;
+      if (p.life <= 0) this.trailParticles.splice(i, 1);
+    }
+    if (this.trailDamageCooldown > 0) this.trailDamageCooldown--;
+    if (this.trailDamageCooldown === 0) {
+      for (const p of this.trailParticles) {
+        if (circleDist(player.pos.x, player.pos.y, p.x, p.y) < player.radius + p.size) {
+          player.takeDamage(C.ASHTAROTH_TRAIL_DAMAGE);
+          this.trailDamageCooldown = C.ASHTAROTH_TRAIL_DAMAGE_INTERVAL;
+          break;
+        }
+      }
+    }
+
+    // Fire big meat lumps
+    this.lumpTimer--;
+    if (this.lumpTimer <= 0) {
+      this.lumpTimer = this._lumpRate;
+      const base  = Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
+      const count = this._lumpCount;
+      const spread = 0.28;
+      for (let i = 0; i < count; i++) {
+        const off = count > 1 ? (i - (count - 1) / 2) * spread : 0;
+        const a   = base + off + randFloat(-0.08, 0.08);
+        const spd = C.ASHTAROTH_BIG_LUMP_SPEED * (0.85 + Math.random() * 0.30);
+        G.meatLumps.push(new MeatLump(this.pos.x, this.pos.y, Math.cos(a) * spd, Math.sin(a) * spd, true));
+      }
+      AudioEngine.playSFX('ashtaroth_lump');
+    }
+
+    // Barrage of small lumps (phase 2+)
+    if (this.phase >= 2) {
+      this.barrageTimer--;
+      if (this.barrageTimer <= 0) {
+        this.barrageTimer = C.ASHTAROTH_BARRAGE_RATE;
+        const count = this.phase === 3 ? C.ASHTAROTH_BARRAGE_COUNT_3 : C.ASHTAROTH_BARRAGE_COUNT_2;
+        for (let i = 0; i < count; i++) {
+          const a   = (Math.PI * 2 / count) * i;
+          const spd = C.ASHTAROTH_SMALL_LUMP_SPEED * (0.9 + Math.random() * 0.2);
+          G.meatLumps.push(new MeatLump(this.pos.x, this.pos.y, Math.cos(a) * spd, Math.sin(a) * spd, false));
+        }
+        AudioEngine.playSFX('ashtaroth_barrage');
+      }
+    }
+
+    // Contact damage
+    if (this.contactCooldown > 0) this.contactCooldown--;
+    if (this.contactCooldown === 0 &&
+        circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
+      player.takeDamage(C.ASHTAROTH_CONTACT_DAMAGE);
+      this.contactCooldown = C.GHOST_CONTACT_COOLDOWN;
+    }
+  }
+
+  takeDamage(amount) {
+    if (this.arriving || this.transitionTimer > 0) return;
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.hp = 0; this.alive = false;
+      AudioEngine.playSFX('death');
+      _spawnDeathFX(this);
+      _clearBossMinions();
+      G.meatLumps.length = 0;
+      G.currentRoom.bossDoorsLocked = false;
+    }
+  }
+}
+
 function spawnBoss() {
-  // Boss cycle: skull (floor 1,4,7…), ghoul (2,5,8…), mummy (3,6,9…)
-  const m = (G.floor || 1) % 3;
-  if (m === 0) return [new MummyBossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
+  // Boss cycle: skull (floor 1,5,9…), ghoul (2,6,10…), mummy (3,7,11…), Ashtaroth (4,8,12…)
+  const m = (G.floor || 1) % 4;
+  if (m === 0) return [new AshtarothBossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
+  if (m === 3) return [new MummyBossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
   if (m === 2) return [new GhoulBossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
   return [new BossEnemy(C.WIDTH / 2, C.HEIGHT / 2)];
 }

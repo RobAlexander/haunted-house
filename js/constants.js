@@ -228,6 +228,37 @@ const C = {
   DEMON_TRAIL_DAMAGE:           10,
   DEMON_TRAIL_DAMAGE_INTERVAL:  8,  // frames between trail damage ticks
 
+  // Ashtaroth Boss — fourth in boss cycle (floors 4, 8, 12…)
+  ASHTAROTH_HP:                  500,
+  ASHTAROTH_RADIUS:               26,
+  ASHTAROTH_CONTACT_DAMAGE:       35,
+  ASHTAROTH_SPEED_1:               0.85,
+  ASHTAROTH_SPEED_2:               1.35,
+  ASHTAROTH_SPEED_3:               1.9,
+  ASHTAROTH_LUMP_RATE_1:          85,    // frames between lump volleys, phase 1
+  ASHTAROTH_LUMP_RATE_2:          65,
+  ASHTAROTH_LUMP_RATE_3:          50,
+  ASHTAROTH_LUMP_COUNT_1:          1,    // big lumps per volley
+  ASHTAROTH_LUMP_COUNT_2:          2,
+  ASHTAROTH_LUMP_COUNT_3:          3,
+  ASHTAROTH_BARRAGE_RATE:         290,   // frames between barrages (phase 2+)
+  ASHTAROTH_BARRAGE_COUNT_2:        8,
+  ASHTAROTH_BARRAGE_COUNT_3:       12,
+  ASHTAROTH_TRAIL_LIFETIME:       700,   // boss's personal trail particle lifetime
+  ASHTAROTH_TRAIL_INTERVAL:         3,   // frames between trail spawns
+  ASHTAROTH_TRAIL_DAMAGE:          10,
+  ASHTAROTH_TRAIL_DAMAGE_INTERVAL:  8,
+  ASHTAROTH_BIG_LUMP_RADIUS:       10,
+  ASHTAROTH_BIG_LUMP_SPEED:         2.2,
+  ASHTAROTH_BIG_LUMP_DAMAGE:       30,
+  ASHTAROTH_BIG_LUMP_TRAIL_LIFE:  500,   // gas trail behind each big lump
+  ASHTAROTH_SMALL_LUMP_RADIUS:      6,
+  ASHTAROTH_SMALL_LUMP_SPEED:       4.5,
+  ASHTAROTH_SMALL_LUMP_DAMAGE:     18,
+  SCORE_ASHTAROTH:                200,
+  COL_ASHTAROTH:             '#ff4400',  // deep orange-red
+  COL_ASHTAROTH_GAS:         '#441100',  // dark brownish-red gas
+
   // Ghoul Boss — third in boss cycle (floors 2, 5, 8…)
   GHOUL_BOSS_HP:                438,
   GHOUL_BOSS_RADIUS:             22,

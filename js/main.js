@@ -83,6 +83,10 @@ function draw() {
       G.flies[i].update(G.player);
       if (!G.flies[i].alive) G.flies.splice(i, 1);
     }
+    for (let i = G.meatLumps.length - 1; i >= 0; i--) {
+      G.meatLumps[i].update(G.player);
+      if (!G.meatLumps[i].alive) G.meatLumps.splice(i, 1);
+    }
 
     // Score kills before bullet update removes dead enemies
     for (const e of G.enemies) {
@@ -91,7 +95,7 @@ function draw() {
 
     G.bullets.update(G.player, G.enemies, G.currentRoom);
 
-    // Player bullets can also hit flies
+    // Player bullets can also hit flies and small meat lumps
     for (const b of G.bullets.pool) {
       if (!b.active || b.owner !== 'player') continue;
       for (let i = G.flies.length - 1; i >= 0; i--) {
@@ -99,6 +103,16 @@ function draw() {
         if (!fly.alive) continue;
         if (circleCollide(b.pos.x, b.pos.y, b.radius, fly.pos.x, fly.pos.y, fly.radius)) {
           fly.takeDamage(b.damage);
+          b.deactivate();
+          break;
+        }
+      }
+      if (!b.active) continue;
+      for (let i = G.meatLumps.length - 1; i >= 0; i--) {
+        const lump = G.meatLumps[i];
+        if (!lump.alive || lump.big) continue;  // only small (barrage) lumps are shootable
+        if (circleCollide(b.pos.x, b.pos.y, b.radius, lump.pos.x, lump.pos.y, lump.radius)) {
+          lump.takeDamage(b.damage);
           b.deactivate();
           break;
         }

@@ -13,6 +13,12 @@ const Renderer = {
 
     if (G.state === STATES.MENU) { this.drawMenu(); return; }
 
+    // Screen shake — offset all game-world rendering by a random jitter, then decay
+    if (G.screenShake > 0) {
+      translate((Math.random() - 0.5) * G.screenShake, (Math.random() - 0.5) * G.screenShake);
+      G.screenShake = Math.max(0, G.screenShake - 0.5);
+    }
+
     if (G.state === STATES.ROOM_TRANSITION) {
       this.drawTransition();
       this.drawHUD();
@@ -21,6 +27,7 @@ const Renderer = {
 
     this.drawRoom(G.currentRoom);
     this.drawDemonTrail(G.enemies);
+    this.drawAshtarothTrail(G.enemies, G.meatLumps);
     this.drawPickup(G.currentRoom);
     this.drawWidePowerup(G.currentRoom);
     this.drawMaxHpPowerup(G.currentRoom);
@@ -30,6 +37,7 @@ const Renderer = {
     this.drawRagSymbol(G.currentRoom);
     this.drawDrops(G.drops);
     this.drawFlies(G.flies);
+    this.drawMeatLumps(G.meatLumps);
     this.drawDeathParticles(G.deathParticles);
     this.drawBullets(G.bullets);
     this.drawEnemies(G.enemies);
@@ -507,8 +515,9 @@ const Renderer = {
       if (e.type === 'ghoul')       this._drawGhoul(e);
       if (e.type === 'long_ghoul')  this._drawLongGhoul(e);
       if (e.type === 'demon')  this._drawDemon(e);
-      if (e.type === 'mummy')      this._drawMummy(e);
-      if (e.type === 'mummy_boss') this._drawMummyBoss(e);
+      if (e.type === 'mummy')           this._drawMummy(e);
+      if (e.type === 'mummy_boss')      this._drawMummyBoss(e);
+      if (e.type === 'ashtaroth_boss')  this._drawAshtarothBoss(e);
     }
   },
 
@@ -767,7 +776,7 @@ const Renderer = {
     circle(x + e.eyeOff, y - 3, eyeSize);
     drawingContext.globalAlpha = 1;
 
-    this._drawBossHP(e, C.COL_GHOUL_BOSS);
+    if (!e.arriving) this._drawBossHP(e, C.COL_GHOUL_BOSS);
   },
 
   _drawLongGhoul(e) {
@@ -1046,6 +1055,45 @@ const Renderer = {
 
   _drawBoss(e) {
     const x = e.pos.x, y = e.pos.y, r = e.radius;
+
+    // Arrival animation: skull materialises from a point, spinning, over 3 seconds
+    if (e.arriving) {
+      const frac = 1 - e.arriveTimer / 180;
+      push();
+      translate(x, y);
+      rotate(e.arriveAngle);
+      scale(frac);
+      const col = C.COL_BOSS;
+      // Skull silhouette centred at origin
+      const sp = [
+        [0,          -r * 1.05],
+        [r * 0.82,   -r * 0.52],
+        [r * 0.88,    r * 0.08],
+        [r * 0.58,    r * 0.68],
+        [0,           r * 0.82],
+        [-r * 0.58,   r * 0.68],
+        [-r * 0.88,   r * 0.08],
+        [-r * 0.82,  -r * 0.52],
+      ];
+      fill(C.COL_BG); stroke(col); strokeWeight(1.5);
+      beginShape();
+      curveVertex(sp[0][0], sp[0][1]);
+      for (const [px, py] of sp) curveVertex(px, py);
+      curveVertex(sp[0][0], sp[0][1]);
+      curveVertex(sp[0][0], sp[0][1]);
+      endShape();
+      noStroke(); fill(C.COL_BG);
+      circle(-r * 0.35, -r * 0.15, r * 0.58);
+      circle( r * 0.35, -r * 0.15, r * 0.58);
+      drawingContext.globalAlpha = frac;
+      fill(col);
+      circle(-r * 0.35, -r * 0.15, r * 0.36);
+      circle( r * 0.35, -r * 0.15, r * 0.36);
+      drawingContext.globalAlpha = 1;
+      pop();
+      return;
+    }
+
     const phase = e.phase;
     const col = C.COL_BOSS;
 
@@ -1164,6 +1212,179 @@ const Renderer = {
     rect(cx - bw/2, topY, bw * frac, bh);
   },
 
+  drawAshtarothTrail(enemies, meatLumps) {
+    noStroke();
+    // Boss's own long trail
+    for (const e of enemies) {
+      if (!e.alive || e.type !== 'ashtaroth_boss' || !e.trailParticles) continue;
+      for (const p of e.trailParticles) {
+        const frac  = p.life / p.maxLife;
+        const alpha = frac > 0.85 ? (1 - frac) / 0.15 * 0.40
+                    : frac < 0.35 ? (frac  / 0.35) * 0.40
+                    :                0.40;
+        drawingContext.globalAlpha = alpha;
+        fill(C.COL_ASHTAROTH_GAS);
+        circle(p.x, p.y, p.size * 2);
+      }
+    }
+    // Gas trails from big meat lumps
+    for (const lump of meatLumps) {
+      if (!lump.big || !lump.trailParticles) continue;
+      for (const p of lump.trailParticles) {
+        const frac  = p.life / p.maxLife;
+        const alpha = frac > 0.85 ? (1 - frac) / 0.15 * 0.38
+                    : frac < 0.35 ? (frac  / 0.35) * 0.38
+                    :                0.38;
+        drawingContext.globalAlpha = alpha;
+        fill(C.COL_ASHTAROTH_GAS);
+        circle(p.x, p.y, p.size * 2);
+      }
+    }
+    drawingContext.globalAlpha = 1;
+  },
+
+  drawMeatLumps(lumps) {
+    if (!lumps || lumps.length === 0) return;
+    for (const lump of lumps) {
+      if (!lump.alive) continue;
+      const x = lump.pos.x, y = lump.pos.y, r = lump.radius;
+      if (lump.big) {
+        // Large arcing lump — fleshy organic blob with irregular outline
+        const pulse = 0.85 + 0.15 * Math.sin(G.frame * 0.13 + x * 0.04);
+        noStroke(); fill(C.COL_ASHTAROTH_GAS);
+        circle(x, y, (r + 3) * 2);
+        noStroke(); fill(C.COL_ASHTAROTH);
+        circle(x, y, r * 2 * pulse);
+        // Veiny highlight
+        stroke(C.COL_ASHTAROTH); strokeWeight(0.8); noFill();
+        const jags = 5;
+        beginShape();
+        for (let i = 0; i <= jags; i++) {
+          const a  = (Math.PI * 2 / jags) * i;
+          const jr = r * (0.55 + 0.25 * Math.sin(i * 2.3 + G.frame * 0.07));
+          curveVertex(x + Math.cos(a) * jr, y + Math.sin(a) * jr);
+        }
+        endShape(CLOSE);
+      } else {
+        // Small barrage lump — compact fleshy dot with glow
+        noStroke(); fill(C.COL_ASHTAROTH_GAS);
+        circle(x, y, (r + 2) * 2);
+        noStroke(); fill(C.COL_ASHTAROTH);
+        circle(x, y, r * 2);
+      }
+    }
+  },
+
+  _drawAshtarothBoss(e) {
+    const x = e.pos.x, y = e.pos.y, r = e.radius;
+    const col = C.COL_ASHTAROTH;
+
+    // Arrival animation: spins and grows from a point (same pattern as skull boss)
+    if (e.arriving) {
+      const frac = 1 - e.arriveTimer / 180;
+      push(); translate(x, y); rotate(e.arriveAngle); scale(frac);
+      // Simplified demon head
+      noFill(); stroke(col); strokeWeight(2);
+      ellipse(0, 0, r * 2.2, r * 1.8);
+      // Horns
+      line(-r * 0.5, -r * 0.7, -r * 0.8, -r * 1.5);
+      line( r * 0.5, -r * 0.7,  r * 0.8, -r * 1.5);
+      // Eyes
+      drawingContext.globalAlpha = frac;
+      noStroke(); fill(col);
+      circle(-r * 0.38, -r * 0.1, r * 0.35);
+      circle( r * 0.38, -r * 0.1, r * 0.35);
+      drawingContext.globalAlpha = 1;
+      pop();
+      return;
+    }
+
+    // Phase transition glow
+    if (e.transitionTimer > 0) {
+      const tf    = e.transitionTimer / C.BOSS_PHASE_TRANSITION_FRAMES;
+      const pulse = 0.5 + 0.5 * Math.sin(G.frame * 0.25);
+      drawingContext.globalAlpha = tf * (0.45 + 0.35 * pulse);
+      noStroke(); fill('#ffee00');
+      ellipse(x, y, (r + 20) * 2.2, (r + 20) * 1.8);
+      drawingContext.globalAlpha = 1;
+    }
+
+    // Phase halo
+    if (e.phase > 1) {
+      drawingContext.globalAlpha = (e.phase - 1) * 0.11;
+      noStroke(); fill(col);
+      ellipse(x, y, r * 4, r * 3.4);
+      drawingContext.globalAlpha = 1;
+    }
+
+    const bodyW = r * 1.1, bodyH = r * 0.9;
+
+    // Wings — two large curved bat wings extending to sides
+    const wFlap = Math.sin(G.frame * 0.06) * 0.12;
+    noFill(); stroke(col); strokeWeight(1.5);
+    // Left wing
+    beginShape();
+    curveVertex(x - bodyW,       y);
+    curveVertex(x - r * 2.2,     y - r * 1.0 + wFlap * 20);
+    curveVertex(x - r * 3.2,     y + r * 0.3 + wFlap * 15);
+    curveVertex(x - r * 2.5,     y + r * 0.8);
+    curveVertex(x - bodyW,       y + r * 0.4);
+    endShape();
+    // Right wing (mirrored)
+    beginShape();
+    curveVertex(x + bodyW,       y);
+    curveVertex(x + r * 2.2,     y - r * 1.0 + wFlap * 20);
+    curveVertex(x + r * 3.2,     y + r * 0.3 + wFlap * 15);
+    curveVertex(x + r * 2.5,     y + r * 0.8);
+    curveVertex(x + bodyW,       y + r * 0.4);
+    endShape();
+    // Wing membrane ribs
+    strokeWeight(0.8);
+    drawingContext.globalAlpha = 0.55;
+    for (let i = 1; i <= 3; i++) {
+      const t = i / 4;
+      line(x - bodyW, y + r * 0.1,
+           x - bodyW - (r * 2.2 - bodyW) * t, y - r * 0.7 * t + wFlap * 20 * t);
+      line(x + bodyW, y + r * 0.1,
+           x + bodyW + (r * 2.2 - bodyW) * t, y - r * 0.7 * t + wFlap * 20 * t);
+    }
+    drawingContext.globalAlpha = 1;
+
+    // Head/body — wide oval
+    fill(C.COL_BG); stroke(col); strokeWeight(1.8 + e.phase * 0.4);
+    ellipse(x, y, bodyW * 2, bodyH * 2);
+
+    // Horns
+    strokeWeight(2); stroke(col); noFill();
+    line(x - r * 0.4, y - bodyH * 0.85, x - r * 0.65, y - bodyH * 1.85);
+    line(x - r * 0.65, y - bodyH * 1.85, x - r * 0.35, y - bodyH * 1.5);
+    line(x + r * 0.4, y - bodyH * 0.85, x + r * 0.65, y - bodyH * 1.85);
+    line(x + r * 0.65, y - bodyH * 1.85, x + r * 0.35, y - bodyH * 1.5);
+
+    // Eye sockets
+    const eyeCol = e.phase === 3 ? '#ffff00' : e.phase === 2 ? '#ff8800' : col;
+    const pulseGlow = 0.6 + 0.4 * Math.sin(G.frame * (0.08 + e.phase * 0.04));
+    noStroke(); fill(C.COL_BG);
+    circle(x - r * 0.38, y - r * 0.1, r * 0.55);
+    circle(x + r * 0.38, y - r * 0.1, r * 0.55);
+    drawingContext.globalAlpha = pulseGlow;
+    fill(eyeCol);
+    circle(x - r * 0.38, y - r * 0.1, r * 0.38);
+    circle(x + r * 0.38, y - r * 0.1, r * 0.38);
+    drawingContext.globalAlpha = 1;
+
+    // Maw — jagged open mouth
+    strokeWeight(1.2); stroke(col); noFill();
+    const mw = r * 0.7, mTop = y + r * 0.22, mBot = y + r * 0.65;
+    for (let i = 0; i < 5; i++) {
+      const t  = i / 4;
+      const mx = x - mw + t * mw * 2;
+      line(mx, mTop, mx, i % 2 === 0 ? mBot : mTop + (mBot - mTop) * 0.45);
+    }
+
+    if (!e.arriving) this._drawBossHP(e, col);
+  },
+
   _drawBossHP(boss, accentCol) {
     const col = accentCol || C.COL_BOSS;
     const bx = C.WIDTH / 2 - 150, by = C.HEIGHT - 30, bw = 300, bh = 10;
@@ -1172,8 +1393,13 @@ const Renderer = {
     fill(frac < 0.33 ? C.COL_BOSS : C.COL_HUD_HP_LOW);
     rect(bx, by, bw * frac, bh);
     noFill(); stroke(col); strokeWeight(0.5); rect(bx, by, bw, bh);
-    noStroke(); fill(C.COL_HUD_TEXT); textSize(9); textAlign(CENTER, TOP);
-    text(`BOSS  ${Math.round(boss.hp)} / ${boss.maxHp}`, C.WIDTH / 2, by + bh + 2);
+    const name = boss.type === 'ghoul_boss'      ? 'ROTTEN PHILIP'
+               : boss.type === 'mummy_boss'      ? 'THE DRY MOTHER'
+               : boss.type === 'ashtaroth_boss'  ? 'ASHTAROTH'
+               :                                   'KILLER SKULL';
+    noStroke(); fill(col); textFont('Creepster'); textSize(16); textAlign(CENTER, TOP);
+    text(name, C.WIDTH / 2, by + bh + 2);
+    textFont('monospace');
   },
 
   // ── Player ────────────────────────────────────────────────────────────
@@ -1753,7 +1979,8 @@ const Renderer = {
       { col: '#ff9922',         label: 'mixed'      },
       { col: C.COL_BOSS,        label: 'boss (skull)'  },
       { col: C.COL_GHOUL_BOSS,  label: 'boss (ghoul)'  },
-      { col: C.COL_MUMMY_BOSS,  label: 'boss (mummy)'  },
+      { col: C.COL_MUMMY_BOSS,  label: 'boss (mummy)'     },
+      { col: C.COL_ASHTAROTH,   label: 'boss (ashtaroth)' },
       { col: C.COL_PICKUP,      label: 'treasure'   },
     ];
     const lx = 14, ly = C.HEIGHT - 14 - legendItems.length * 13;

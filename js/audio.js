@@ -253,6 +253,10 @@ const AudioEngine = (() => {
       case 'ghoul_boss_leap':  _sfxGhoulBossLeap(now);  break;
       case 'mummy_awaken':     _sfxMummyAwaken(now);    break;
       case 'mummy_flies':      _sfxMummyFlies(now);     break;
+      case 'skull_boss_arrive':  _sfxSkullBossArrive(now);  break;
+      case 'ghoul_boss_land':    _sfxGhoulBossLand(now);   break;
+      case 'ashtaroth_lump':     _sfxAshtarothLump(now);   break;
+      case 'ashtaroth_barrage':  _sfxAshtarothBarrage(now); break;
       case 'boss_enter':  _sfxBossEnter(now);  break;
       case 'boss_phase':  _sfxBossPhase(now);  break;
       case 'game_over':   _sfxGameOver(now);   break;
@@ -702,6 +706,138 @@ const AudioEngine = (() => {
     g3.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
     osc3.connect(g3); g3.connect(master);
     osc3.start(now); osc3.stop(now + 0.30);
+  }
+
+  function _sfxSkullBossArrive(now) {
+    // 3-second ominous coalescing sound: low rising drone + eerie spinning high tone + crash
+    // Low drone — sub-bass sawtooth swelling upward
+    const osc1 = ctx.createOscillator();
+    const g1   = ctx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(38, now);
+    osc1.frequency.linearRampToValueAtTime(72, now + 2.6);
+    g1.gain.setValueAtTime(0.001, now);
+    g1.gain.linearRampToValueAtTime(0.16, now + 1.2);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 3.1);
+    osc1.connect(g1); g1.connect(reverb);
+    osc1.start(now); osc1.stop(now + 3.2);
+
+    // Eerie spinning tone — square wave tremolo that slows as it materialises
+    const osc2 = ctx.createOscillator();
+    const lfo2 = ctx.createOscillator();
+    const lfoG = ctx.createGain();
+    const g2   = ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(220, now);
+    osc2.frequency.linearRampToValueAtTime(440, now + 2.8);
+    lfo2.type = 'sine';
+    lfo2.frequency.setValueAtTime(9, now);
+    lfo2.frequency.linearRampToValueAtTime(2, now + 2.8);  // slows as it lands
+    lfoG.gain.setValueAtTime(0.07, now);
+    lfo2.connect(lfoG); lfoG.connect(g2.gain);
+    g2.gain.setValueAtTime(0.001, now);
+    g2.gain.linearRampToValueAtTime(0.09, now + 0.6);
+    g2.gain.linearRampToValueAtTime(0.13, now + 2.2);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 3.1);
+    osc2.connect(g2); g2.connect(reverb);
+    lfo2.start(now); lfo2.stop(now + 3.1);
+    osc2.start(now); osc2.stop(now + 3.1);
+
+    // Final crash at end — sharp sawtooth impact + sub thud
+    const osc3 = ctx.createOscillator();
+    const g3   = ctx.createGain();
+    osc3.type = 'sawtooth';
+    osc3.frequency.setValueAtTime(110, now + 2.85);
+    osc3.frequency.exponentialRampToValueAtTime(28, now + 3.6);
+    g3.gain.setValueAtTime(0.001, now + 2.85);
+    g3.gain.linearRampToValueAtTime(0.32, now + 2.90);
+    g3.gain.exponentialRampToValueAtTime(0.001, now + 3.6);
+    osc3.connect(g3); g3.connect(reverb); g3.connect(master);
+    osc3.start(now + 2.85); osc3.stop(now + 3.65);
+  }
+
+  function _sfxGhoulBossLand(now) {
+    // Massive floor-impact thud when Philip lands — very fast attack, deep sub-bass
+    // Primary sub-bass thud
+    const osc1 = ctx.createOscillator();
+    const g1   = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(65, now);
+    osc1.frequency.exponentialRampToValueAtTime(18, now + 0.55);
+    g1.gain.setValueAtTime(0.001, now);
+    g1.gain.linearRampToValueAtTime(0.60, now + 0.012);  // very fast attack
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    osc1.connect(g1); g1.connect(master);
+    osc1.start(now); osc1.stop(now + 0.60);
+
+    // Body impact — sawtooth crunch
+    const osc2 = ctx.createOscillator();
+    const g2   = ctx.createGain();
+    osc2.type = 'sawtooth';
+    osc2.frequency.setValueAtTime(90, now);
+    osc2.frequency.exponentialRampToValueAtTime(28, now + 0.40);
+    g2.gain.setValueAtTime(0.001, now);
+    g2.gain.linearRampToValueAtTime(0.38, now + 0.018);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+    osc2.connect(g2); g2.connect(reverb); g2.connect(master);
+    osc2.start(now); osc2.stop(now + 0.48);
+
+    // Floor rumble — low-pass noise burst
+    const { src, gain } = _noise(0.7, 0.28);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 280;
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.linearRampToValueAtTime(0.28, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    gain.connect(lp); lp.connect(master);
+    src.start(now); src.stop(now + 0.72);
+  }
+
+  function _sfxAshtarothLump(now) {
+    // Wet meaty thud — lowpass noise burst + short sine thud
+    const { src, gain } = _noise(0.18, 0.30);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 1.5;
+    gain.gain.setValueAtTime(0.30, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    gain.connect(lp); lp.connect(reverb); lp.connect(master);
+    src.start(now); src.stop(now + 0.20);
+
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(110, now);
+    osc.frequency.exponentialRampToValueAtTime(55, now + 0.14);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.22, now + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(g); g.connect(master);
+    osc.start(now); osc.stop(now + 0.20);
+  }
+
+  function _sfxAshtarothBarrage(now) {
+    // Rapid wet splat burst — staggered noise pops
+    for (let i = 0; i < 4; i++) {
+      const t = now + i * 0.045;
+      const { src, gain } = _noise(0.09, 0.18);
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 600 + i * 120; bp.Q.value = 2.0;
+      gain.gain.setValueAtTime(0.18, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+      gain.connect(bp); bp.connect(master);
+      src.start(t); src.stop(t + 0.10);
+    }
+    // Low sub-thud underneath
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(80, now);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.22);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.20, now + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.connect(g); g.connect(reverb);
+    osc.start(now); osc.stop(now + 0.28);
   }
 
   function _sfxMummyAwaken(now) {

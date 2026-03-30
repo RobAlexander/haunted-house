@@ -215,15 +215,19 @@ class DungeonGraph {
       };
     });
 
-    // Possibly place one mummy enemy marker in a random combat room (floor 2+)
-    if ((G.floor || 1) >= 2) {
-      const mummyChance = Math.min(0.50, 0.10 + ((G.floor || 1) - 2) * 0.10);
-      if (Math.random() < mummyChance) {
-        const mummyPool = nonStart.filter(r => r.type !== 'boss' && r.type !== 'treasure');
-        if (mummyPool.length > 0) {
-          mummyPool[randInt(0, mummyPool.length - 1)].hasMummy = true;
-        }
-      }
+    // Place mummy markers in random combat rooms.
+    // Floor 2–3: low probability (10–25%). Floor 4+ (post-mummy-boss): guaranteed 1.
+    // Floor 7+ (second mummy-boss cycle): 60% chance of a second one.
+    const floor = G.floor || 1;
+    if (floor >= 2) {
+      const mummyPool = nonStart.filter(r => r.type !== 'boss' && r.type !== 'treasure');
+      const _placeMummy = (pool) => {
+        if (pool.length === 0) return;
+        pool.splice(randInt(0, pool.length - 1), 1)[0].hasMummy = true;
+      };
+      const firstChance = floor >= 4 ? 1.0 : 0.10 + (floor - 2) * 0.15;
+      if (Math.random() < firstChance) _placeMummy(mummyPool);
+      if (floor >= 7 && Math.random() < 0.60) _placeMummy(mummyPool);
     }
   }
 }
