@@ -2232,29 +2232,37 @@ const Renderer = {
   _drawVictoryText() {
     const W = C.WIDTH, H = C.HEIGHT;
     textAlign(CENTER, CENTER);
+    textFont('monospace');
 
-    // Title — in the sky above the ruins
-    fill('#ff5500'); textFont('monospace'); textSize(36);
-    text('THE HOUSE FALLS!', W / 2, 50);
+    // Title — just below the hill peak / foundation line (~y 178)
+    fill('#ff5500'); textSize(32);
+    text('THE HOUSE FALLS!', W / 2, 205);
 
     // Flavour text
-    fill(C.COL_HUD_TEXT); textFont('monospace'); textSize(11);
+    fill(C.COL_HUD_TEXT); textSize(11);
     const cx = W / 2;
-    text('You have destroyed the haunted house. The land can now be used for',   cx,  93);
-    text('some affordable housing and a small supermarket. You can quit now',     cx, 107);
-    text('and have recognition for your high score (if competitive), or proceed', cx, 121);
-    text('to another house which, we are told, is even more haunted.',             cx, 135);
+    text('You have destroyed the haunted house. The land can now be used for',   cx, 244);
+    text('some affordable housing and a small supermarket. You can quit now',     cx, 258);
+    text('and have recognition for your high score (if competitive), or proceed', cx, 272);
+    text('to another house which, we are told, is even more haunted.',             cx, 286);
 
     // Score
     fill(C.COL_CLEARED); textSize(18);
-    text(`SCORE:  ${G.score}`, W / 2, 158);
+    text(`SCORE:  ${G.score}`, W / 2, 316);
 
-    // Options at bottom, pulsing gently
-    drawingContext.globalAlpha = 0.7 + 0.3 * Math.sin(G.frame * 0.06);
+    // Key guide
+    const pulse = 0.7 + 0.3 * Math.sin(G.frame * 0.06);
+    drawingContext.globalAlpha = pulse;
+    fill(C.COL_HUD_TEXT); textSize(11);
+    text('─────────────────────────────────────', cx, 348);
     fill(C.COL_WIN); textSize(13);
-    text('N  —  try again in a new haunted house  (harder)', W / 2, H - 38);
+    text('N', cx - 120, 368);
     fill(C.COL_HUD_TEXT); textSize(12);
-    text('E  —  exit  (high score table)', W / 2, H - 20);
+    text('carry on into a new (harder) haunted house', cx + 30, 368);
+    fill(C.COL_WIN); textSize(13);
+    text('E  /  Esc', cx - 108, 388);
+    fill(C.COL_HUD_TEXT); textSize(12);
+    text('exit to menu and high score table', cx + 46, 388);
     drawingContext.globalAlpha = 1;
   },
 
