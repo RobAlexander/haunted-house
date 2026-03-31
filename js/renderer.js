@@ -87,13 +87,14 @@ const Renderer = {
     text('ENTER  or  CLICK  to begin', C.WIDTH / 2, C.HEIGHT / 2 + 10);
 
     fill(C.COL_HUD_TITLE); textSize(11);
-    text('WASD  move     MOUSE  aim     CLICK  shoot     M  map', C.WIDTH / 2, C.HEIGHT / 2 + 50);
-    text('Find the boss room and destroy the haunting', C.WIDTH / 2, C.HEIGHT / 2 + 70);
+    text('WASD  move     MOUSE  aim     CLICK  shoot     M  map', C.WIDTH / 2, C.HEIGHT / 2 + 47);
+    text('SPACE  use powerup     Q  cycle item     P  pause', C.WIDTH / 2, C.HEIGHT / 2 + 63);
+    text('Find the boss room and destroy the haunting', C.WIDTH / 2, C.HEIGHT / 2 + 79);
 
     // High score table
     const scores = HighScores.get();
     if (scores.length > 0) {
-      const cx = C.WIDTH / 2, ty = C.HEIGHT / 2 + 108;
+      const cx = C.WIDTH / 2, ty = C.HEIGHT / 2 + 117;
       noStroke(); fill(C.COL_HUD_TITLE); textSize(10); textAlign(CENTER, TOP);
       text('─── HIGH SCORES ───', cx, ty);
       const lx = cx - 118;
@@ -1296,28 +1297,31 @@ const Renderer = {
     const x = e.pos.x, y = e.pos.y, r = e.radius;
     const col = C.COL_ASHTAROTH;
 
-    // Arrival animation: spins and grows from a point (same pattern as skull boss)
+    // Arrival animation: rises from flames at the bottom of the screen
     if (e.arriving) {
       const frac = 1 - e.arriveTimer / 180;
-      push(); translate(x, y); rotate(e.arriveAngle); scale(frac);
-      // Simplified demon head
-      noFill(); stroke(col); strokeWeight(2);
-      ellipse(0, 0, r * 2.2, r * 1.8);
-      // Horns
-      line(-r * 0.5, -r * 0.7, -r * 0.8, -r * 1.5);
-      line( r * 0.5, -r * 0.7,  r * 0.8, -r * 1.5);
-      // Eyes
-      drawingContext.globalAlpha = frac;
-      noStroke(); fill(col);
-      circle(-r * 0.38, -r * 0.1, r * 0.35);
-      circle( r * 0.38, -r * 0.1, r * 0.35);
+      noFill();
+      for (let i = 0; i < 20; i++) {
+        const fx    = 10 + i * (C.WIDTH - 20) / 19;
+        const seed  = i * 2.71;
+        const h     = (55 + Math.sin(seed) * 18 + (i % 3) * 14) * Math.min(1, frac * 2.2);
+        const sway  = Math.sin(G.frame * 0.15 + seed) * 10;
+        const tipX  = fx + sway, tipY = C.HEIGHT - h;
+        drawingContext.globalAlpha = 0.85 * Math.min(1, frac * 3);
+        stroke(col); strokeWeight(2.5);
+        line(fx - 10, C.HEIGHT, tipX, tipY);
+        line(fx + 10, C.HEIGHT, tipX, tipY);
+        drawingContext.globalAlpha = 0.6 * Math.min(1, frac * 3);
+        stroke('#ffaa00'); strokeWeight(1.5);
+        const innerSway = Math.sin(G.frame * 0.12 + seed + 1) * 5;
+        line(fx - 4, C.HEIGHT, fx + innerSway, C.HEIGHT - h * 0.5);
+        line(fx + 4, C.HEIGHT, fx + innerSway, C.HEIGHT - h * 0.5);
+      }
       drawingContext.globalAlpha = 1;
-      pop();
-      return;
     }
 
     // Phase transition glow
-    if (e.transitionTimer > 0) {
+    if (!e.arriving && e.transitionTimer > 0) {
       const tf    = e.transitionTimer / C.BOSS_PHASE_TRANSITION_FRAMES;
       const pulse = 0.5 + 0.5 * Math.sin(G.frame * 0.25);
       drawingContext.globalAlpha = tf * (0.45 + 0.35 * pulse);
@@ -1789,12 +1793,18 @@ const Renderer = {
     noStroke(); fill(0, 0, 0, 170); rect(0, 0, C.WIDTH, C.HEIGHT);
     fill(C.COL_HUD_TEXT); textFont('monospace'); textSize(32);
     textAlign(CENTER, CENTER);
-    text('PAUSED', C.WIDTH / 2, C.HEIGHT / 2 - 22);
+    text('PAUSED', C.WIDTH / 2, C.HEIGHT / 2 - 48);
     textSize(14);
     fill(C.COL_HUD_TEXT);
-    text('any key or click to resume', C.WIDTH / 2, C.HEIGHT / 2 + 14);
+    text('P  or  click  →  resume', C.WIDTH / 2, C.HEIGHT / 2 - 10);
     fill(C.COL_GAMEOVER);
-    text('ESC  to quit to menu', C.WIDTH / 2, C.HEIGHT / 2 + 36);
+    text('ESC  →  quit to menu', C.WIDTH / 2, C.HEIGHT / 2 + 12);
+    // Key guide
+    fill(C.COL_HUD_TITLE); textSize(10); textAlign(CENTER, TOP);
+    const ky = C.HEIGHT / 2 + 38;
+    text('WASD · move     MOUSE · aim     CLICK · shoot', C.WIDTH / 2, ky);
+    text('SPACE · use powerup     Q · cycle item     M · map', C.WIDTH / 2, ky + 16);
+    textAlign(CENTER, CENTER);
   },
 
   drawGameOver() {

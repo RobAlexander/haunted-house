@@ -80,6 +80,7 @@ function nextFloor() {
   const savedSpeedTimer    = G.player ? G.player.speedTimer    : 0;
   const savedInvulnTimer   = G.player ? G.player.invulnTimer   : 0;
   const savedAutofireShots = G.player ? G.player.autofireShots : 0;
+  const savedGodMode       = G.player ? G.player.godMode       : false;
   const savedCycles        = G.cyclesCompleted;
   G.floor++;
   startGame();
@@ -92,6 +93,7 @@ function nextFloor() {
     G.player.speedTimer    = savedSpeedTimer;
     G.player.invulnTimer   = savedInvulnTimer;
     G.player.autofireShots = savedAutofireShots;
+    G.player.godMode       = savedGodMode;
   }
   G.score           = savedScore;
   G.cyclesCompleted = savedCycles;
@@ -322,6 +324,7 @@ function checkRoomCleared() {
       const entryDir = dirs.find(d => room.connections[d]);
       const free     = dirs.filter(d => !room.connections[d]);
       room.stairwell = free.includes(opp[entryDir]) ? opp[entryDir] : free[0];
+      if (G.floor % 4 === 0) cycleComplete();
     }
   }
 }

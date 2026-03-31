@@ -61,9 +61,17 @@ class GhostEnemy {
       }
     }
 
-    this.pos.x += this.vel.x;
-    this.pos.y += this.vel.y;
-    this._resolveCollisions(room);
+    if (this.lunging) {
+      // Axis-separated so lunge ghosts slide along walls
+      this.pos.x += this.vel.x;
+      this._resolveCollisions(room);
+      this.pos.y += this.vel.y;
+      this._resolveCollisions(room);
+    } else {
+      this.pos.x += this.vel.x;
+      this.pos.y += this.vel.y;
+      this._resolveCollisions(room);
+    }
 
     // Contact damage
     if (this.contactCooldown > 0) this.contactCooldown--;
@@ -179,7 +187,16 @@ class GhoulEnemy {
 
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
-    this._resolveCollisions(room);
+    if (this.leaping) {
+      const preX = this.pos.x, preY = this.pos.y;
+      this._resolveCollisions(room);
+      if (this.pos.x !== preX || this.pos.y !== preY) {
+        this.leaping   = false;
+        this.leapTimer = randInt(C.GHOUL_LEAP_COOLDOWN_MIN, C.GHOUL_LEAP_COOLDOWN_MAX);
+      }
+    } else {
+      this._resolveCollisions(room);
+    }
     this.crawlPhase += 0.09;
 
     // Contact damage
@@ -292,7 +309,16 @@ class LongGhoulEnemy {
 
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
-    this._resolveCollisions(room);
+    if (this.leaping) {
+      const preX = this.pos.x, preY = this.pos.y;
+      this._resolveCollisions(room);
+      if (this.pos.x !== preX || this.pos.y !== preY) {
+        this.leaping   = false;
+        this.leapTimer = randInt(C.LONG_GHOUL_LEAP_COOLDOWN_MIN, C.LONG_GHOUL_LEAP_COOLDOWN_MAX);
+      }
+    } else {
+      this._resolveCollisions(room);
+    }
     this.crawlPhase += 0.09;
 
     if (this.contactCooldown > 0) this.contactCooldown--;
@@ -884,7 +910,7 @@ function _spawnDeathFX(enemy) {
             : enemy.type === 'white_skull' ? C.COL_WHITE_SKULL
             : enemy.type === 'boss'       ? '#ff2222'
             : '#ff6644';
-  if (enemy.type === 'boss' || enemy.type === 'mummy_boss') {
+  if (enemy.type === 'boss' || enemy.type.endsWith('_boss')) {
     // Multi-wave explosion
     const waves = [
       { delay: 0,  maxR: 220, life: 90, col: '#ffffff' },
@@ -1366,7 +1392,16 @@ class GhoulBossEnemy {
 
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
-    this._resolveCollisions(room);
+    if (this.leaping) {
+      const preX = this.pos.x, preY = this.pos.y;
+      this._resolveCollisions(room);
+      if (this.pos.x !== preX || this.pos.y !== preY) {
+        this.leaping   = false;
+        this.leapTimer = randInt(this._leapCooldownMin, this._leapCooldownMax);
+      }
+    } else {
+      this._resolveCollisions(room);
+    }
     this.crawlPhase += 0.09;
 
     // Minion spawning (phase 2+)
@@ -1627,10 +1662,11 @@ class AshtarothBossEnemy {
     this.trailDamageCooldown = 0;
     this.erraticDir      = { x: 1, y: 0 };
     this.erraticTimer    = 0;
-    // Arrival — spins in from a point (same as skull boss)
-    this.arriving    = true;
-    this.arriveTimer = 180;
-    this.arriveAngle = 0;
+    // Arrival — rises from flames at the bottom of the screen
+    this.arriving      = true;
+    this.arriveTimer   = 180;
+    this.arriveTargetY = y;
+    this.pos.y         = C.HEIGHT + this.radius + 20;  // start below screen
     // Per-instance shape deformation (6 values, range -1..1)
     this.deform = Array.from({ length: 6 }, () => randFloat(-1, 1));
     AudioEngine.playSFX('skull_boss_arrive');
@@ -1657,9 +1693,15 @@ class AshtarothBossEnemy {
     if (!this.alive) return;
 
     if (this.arriving) {
-      this.arriveAngle += (this.arriveTimer / 180) * 0.25;
       this.arriveTimer--;
-      if (this.arriveTimer <= 0) this.arriving = false;
+      const frac   = 1 - this.arriveTimer / 180;
+      const t      = 1 - (1 - frac) * (1 - frac);  // ease-out quadratic
+      const startY = C.HEIGHT + this.radius + 20;
+      this.pos.y   = startY + (this.arriveTargetY - startY) * t;
+      if (this.arriveTimer <= 0) {
+        this.pos.y    = this.arriveTargetY;
+        this.arriving = false;
+      }
       return;
     }
 

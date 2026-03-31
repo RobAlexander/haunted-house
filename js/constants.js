@@ -257,7 +257,7 @@ const C = {
   ASHTAROTH_SMALL_LUMP_DAMAGE:     18,
   SCORE_ASHTAROTH:                200,
   COL_ASHTAROTH:             '#ff4400',  // deep orange-red
-  COL_ASHTAROTH_GAS:         '#441100',  // dark brownish-red gas
+  COL_ASHTAROTH_GAS:         '#77ff99',  // light green gas (lighter shade of demon trail)
 
   // Ghoul Boss — third in boss cycle (floors 2, 5, 8…)
   GHOUL_BOSS_HP:                438,
