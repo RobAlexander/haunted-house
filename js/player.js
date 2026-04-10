@@ -10,8 +10,9 @@ class Player {
     this.godMode   = false;
     this.alive     = true;
     this.wideShots = 0;
-    this.powerups    = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|'speed'|'invuln'|'autofire'|null)
-    this.powerupIdx  = 0;                 // currently selected slot
+    this.powerups      = [null, null, null]; // up to 3 stored powerups ('heal'|'power'|'speed'|'invuln'|'autofire'|null)
+    this.powerupIdx    = 0;                 // currently selected slot
+    this.bounceBullets = false;             // permanent: bullets bounce once off walls
     this.speedTimer  = 0;   // frames of speed-boost remaining
     this.invulnTimer = 0;   // frames of powerup invincibility remaining
     this.autofireShots  = 0;    // shots remaining from autofire powerup
@@ -53,7 +54,11 @@ class Player {
   }
 
   cyclePowerup() {
-    this.powerupIdx = (this.powerupIdx + 1) % 3;
+    for (let i = 1; i <= 3; i++) {
+      const idx = (this.powerupIdx + i) % 3;
+      if (this.powerups[idx] !== null) { this.powerupIdx = idx; return; }
+    }
+    this.powerupIdx = 0; // all empty
   }
 
   usePowerup() {
@@ -71,6 +76,9 @@ class Player {
       this.autofireShots = C.AUTOFIRE_SHOTS;
     }
     this.powerups[this.powerupIdx] = null;
+    // Move selector to next non-null slot; stay at 0 if all empty
+    const next = this.powerups.findIndex(p => p !== null);
+    this.powerupIdx = next === -1 ? 0 : next;
     AudioEngine.playSFX('pickup');
   }
 
@@ -153,7 +161,7 @@ class Player {
     const ca = Math.cos(this.angle), sa = Math.sin(this.angle);
     const tipX = this.pos.x + ca * 26 - sa * 7;
     const tipY = this.pos.y + sa * 26 + ca * 7;
-    bullets.fire(tipX, tipY, vx, vy, 'player', damage, r);
+    bullets.fire(tipX, tipY, vx, vy, 'player', damage, r, this.bounceBullets);
 
     this.fireCooldown = isAutofire ? C.AUTOFIRE_FIRE_RATE : C.PLAYER_FIRE_RATE;
 

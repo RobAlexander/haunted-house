@@ -949,9 +949,11 @@ function _spawnDeathFX(enemy) {
     });
   }
   // Drop chance scales inversely with avg enemies/room so expected drops per room is floor-constant
+  // Bosses never drop healing
+  const isBoss = enemy.type === 'boss' || enemy.type.endsWith('_boss');
   const avg       = G.dungeon ? G.dungeon.avgEnemiesPerRoom : C.DROP_HEAL_BASELINE_ENEMIES;
   const dropChance = C.DROP_CHANCE * C.DROP_HEAL_BASELINE_ENEMIES / avg;
-  if (enemy.type === 'boss' || enemy.type === 'mummy_boss' || enemy.type === 'ghoul_boss' || Math.random() < dropChance) {
+  if (!isBoss && Math.random() < dropChance) {
     G.drops.push({ x: enemy.pos.x, y: enemy.pos.y, amount: C.DROP_HEAL_AMOUNT, life: 360, maxLife: 360 });
   }
 }
@@ -1361,9 +1363,15 @@ class GhoulBossEnemy {
       this.prevPhase = this.phase;
       AudioEngine.playSFX('boss_phase');
     }
-    if (this.transitionTimer > 0) { this.transitionTimer--; return; }
+    if (this.transitionTimer > 0) this.transitionTimer--;
+    const inTransition = this.transitionTimer > 0;
 
-    if (this.leaping) {
+    if (inTransition) {
+      // During invuln: crawl toward player, no leaping or attacks
+      const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+      this.vel.x = n.x * this._crawlSpeed;
+      this.vel.y = n.y * this._crawlSpeed;
+    } else if (this.leaping) {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
       this.vel.x = n.x * this._leapSpeed;
       this.vel.y = n.y * this._leapSpeed;
@@ -1392,7 +1400,7 @@ class GhoulBossEnemy {
 
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
-    if (this.leaping) {
+    if (!inTransition && this.leaping) {
       const preX = this.pos.x, preY = this.pos.y;
       this._resolveCollisions(room);
       if (this.pos.x !== preX || this.pos.y !== preY) {
@@ -1404,19 +1412,22 @@ class GhoulBossEnemy {
     }
     this.crawlPhase += 0.09;
 
-    // Minion spawning (phase 2+)
-    if (this.phase >= 2) {
-      this.minionTimer--;
-      if (this.minionTimer <= 0) {
-        this.minionTimer = this.phase === 3 ? 240 : 360;
-        const p = _bossMinionPos(this.pos.x, this.pos.y,
-          this.phase === 3 ? C.LONG_GHOUL_RADIUS : C.GHOUL_RADIUS);
-        if (p) {
-          const m = this.phase === 3 ? new LongGhoulEnemy(p.x, p.y) : new GhoulEnemy(p.x, p.y);
-          m.bossMinion = true;
-          G.enemies.push(m);
+    if (!inTransition) {
+      // Minion spawning (phase 2+)
+      if (this.phase >= 2) {
+        this.minionTimer--;
+        if (this.minionTimer <= 0) {
+          this.minionTimer = this.phase === 3 ? 240 : 360;
+          const p = _bossMinionPos(this.pos.x, this.pos.y,
+            this.phase === 3 ? C.LONG_GHOUL_RADIUS : C.GHOUL_RADIUS);
+          if (p) {
+            const m = this.phase === 3 ? new LongGhoulEnemy(p.x, p.y) : new GhoulEnemy(p.x, p.y);
+            m.bossMinion = true;
+            G.enemies.push(m);
+          }
         }
       }
+
     }
 
     if (this.contactCooldown > 0) this.contactCooldown--;
@@ -1712,9 +1723,10 @@ class AshtarothBossEnemy {
       this.prevPhase = this.phase;
       AudioEngine.playSFX('boss_phase');
     }
-    if (this.transitionTimer > 0) { this.transitionTimer--; return; }
+    if (this.transitionTimer > 0) this.transitionTimer--;
+    const inTransition = this.transitionTimer > 0;
 
-    // Movement
+    // Movement — always runs
     if (this.phase < 3) {
       const n = normalizeVec(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
       this.vel.x = n.x * this._speed; this.vel.y = n.y * this._speed;
@@ -1738,7 +1750,7 @@ class AshtarothBossEnemy {
       if (push) { this.pos.x += push.x; this.pos.y += push.y; }
     }
 
-    // Spawn own trail (very long)
+    // Trail particles — always tick so existing trail keeps moving/fading during invuln
     this.trailTimer--;
     if (this.trailTimer <= 0) {
       this.trailTimer = C.ASHTAROTH_TRAIL_INTERVAL;
@@ -1756,49 +1768,53 @@ class AshtarothBossEnemy {
       p.life--;
       if (p.life <= 0) this.trailParticles.splice(i, 1);
     }
-    if (this.trailDamageCooldown > 0) this.trailDamageCooldown--;
-    if (this.trailDamageCooldown === 0) {
-      for (const p of this.trailParticles) {
-        if (circleDist(player.pos.x, player.pos.y, p.x, p.y) < player.radius + p.size) {
-          player.takeDamage(C.ASHTAROTH_TRAIL_DAMAGE);
-          this.trailDamageCooldown = C.ASHTAROTH_TRAIL_DAMAGE_INTERVAL;
-          break;
+
+    if (!inTransition) {
+      // Trail damage
+      if (this.trailDamageCooldown > 0) this.trailDamageCooldown--;
+      if (this.trailDamageCooldown === 0) {
+        for (const p of this.trailParticles) {
+          if (circleDist(player.pos.x, player.pos.y, p.x, p.y) < player.radius + p.size) {
+            player.takeDamage(C.ASHTAROTH_TRAIL_DAMAGE);
+            this.trailDamageCooldown = C.ASHTAROTH_TRAIL_DAMAGE_INTERVAL;
+            break;
+          }
         }
       }
-    }
 
-    // Fire big meat lumps
-    this.lumpTimer--;
-    if (this.lumpTimer <= 0) {
-      this.lumpTimer = this._lumpRate;
-      const base  = Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
-      const count = this._lumpCount;
-      const spread = 0.28;
-      for (let i = 0; i < count; i++) {
-        const off = count > 1 ? (i - (count - 1) / 2) * spread : 0;
-        const a   = base + off + randFloat(-0.08, 0.08);
-        const spd = C.ASHTAROTH_BIG_LUMP_SPEED * (0.85 + Math.random() * 0.30);
-        G.meatLumps.push(new MeatLump(this.pos.x, this.pos.y, Math.cos(a) * spd, Math.sin(a) * spd, true));
-      }
-      AudioEngine.playSFX('ashtaroth_lump');
-    }
-
-    // Barrage of small lumps (phase 2+)
-    if (this.phase >= 2) {
-      this.barrageTimer--;
-      if (this.barrageTimer <= 0) {
-        this.barrageTimer = C.ASHTAROTH_BARRAGE_RATE;
-        const count = this.phase === 3 ? C.ASHTAROTH_BARRAGE_COUNT_3 : C.ASHTAROTH_BARRAGE_COUNT_2;
+      // Fire big meat lumps
+      this.lumpTimer--;
+      if (this.lumpTimer <= 0) {
+        this.lumpTimer = this._lumpRate;
+        const base  = Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
+        const count = this._lumpCount;
+        const spread = 0.28;
         for (let i = 0; i < count; i++) {
-          const a   = (Math.PI * 2 / count) * i;
-          const spd = C.ASHTAROTH_SMALL_LUMP_SPEED * (0.9 + Math.random() * 0.2);
-          G.meatLumps.push(new MeatLump(this.pos.x, this.pos.y, Math.cos(a) * spd, Math.sin(a) * spd, false));
+          const off = count > 1 ? (i - (count - 1) / 2) * spread : 0;
+          const a   = base + off + randFloat(-0.08, 0.08);
+          const spd = C.ASHTAROTH_BIG_LUMP_SPEED * (0.85 + Math.random() * 0.30);
+          G.meatLumps.push(new MeatLump(this.pos.x, this.pos.y, Math.cos(a) * spd, Math.sin(a) * spd, true));
         }
-        AudioEngine.playSFX('ashtaroth_barrage');
+        AudioEngine.playSFX('ashtaroth_lump');
       }
+
+      // Barrage of small lumps (phase 2+)
+      if (this.phase >= 2) {
+        this.barrageTimer--;
+        if (this.barrageTimer <= 0) {
+          this.barrageTimer = C.ASHTAROTH_BARRAGE_RATE;
+          const count = this.phase === 3 ? C.ASHTAROTH_BARRAGE_COUNT_3 : C.ASHTAROTH_BARRAGE_COUNT_2;
+          for (let i = 0; i < count; i++) {
+            const a   = (Math.PI * 2 / count) * i;
+            const spd = C.ASHTAROTH_SMALL_LUMP_SPEED * (0.9 + Math.random() * 0.2);
+            G.meatLumps.push(new MeatLump(this.pos.x, this.pos.y, Math.cos(a) * spd, Math.sin(a) * spd, false));
+          }
+          AudioEngine.playSFX('ashtaroth_barrage');
+        }
+      }
+
     }
 
-    // Contact damage
     if (this.contactCooldown > 0) this.contactCooldown--;
     if (this.contactCooldown === 0 &&
         circleCollide(this.pos.x, this.pos.y, this.radius, player.pos.x, player.pos.y, player.radius)) {
@@ -1881,9 +1897,9 @@ function spawnWhiteSkulls(room, px, py) {
   return [];
 }
 
-function spawnLongGhouls(room, px, py) {
+function spawnLongGhouls(room, px, py, countOverride) {
   const longGhouls = [];
-  const count      = Math.max(1, Math.floor(room.enemyCount / 4));
+  const count      = countOverride !== undefined ? countOverride : Math.max(1, Math.floor(room.enemyCount / 4));
   const z          = _spawnZone(room);
   for (let i = 0; i < count * 15 && longGhouls.length < count; i++) {
     const x = randFloat(z.minX, z.maxX);
@@ -1898,16 +1914,30 @@ function spawnLongGhouls(room, px, py) {
 function spawnEnemies(room, px, py) {
   let enemies;
   if (room.type === 'boss')        enemies = spawnBoss();
-  else if (room.type === 'skull') {
-    const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
-    const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
-    const nk = Math.random() < _demonChance() ? spawnDemon(room, px, py)  : [];
-    enemies = [...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws, ...nk];
-  } else if (room.type === 'mixed') {
-    const lg = Math.random() < _longGhoulChance()  ? spawnLongGhouls(room, px, py)  : [];
-    const ws = Math.random() < _whiteSkullChance() ? spawnWhiteSkulls(room, px, py) : [];
-    const nk = Math.random() < _demonChance() ? spawnDemon(room, px, py)  : [];
-    enemies = [...spawnGhosts(room, px, py), ...spawnSkulls(room, px, py), ...spawnGhouls(room, px, py), ...lg, ...ws, ...nk];
+  else if (room.type === 'skull' || room.type === 'mixed') {
+    // Roll premium enemies first, then deduct their slots from the base budget
+    const lg_roll = Math.random() < _longGhoulChance();
+    const ws_roll = Math.random() < _whiteSkullChance();
+    const nk_roll = Math.random() < _demonChance();
+
+    // Compute premium counts from the original budget before reducing it
+    const lgCount = lg_roll ? Math.max(1, Math.floor(room.enemyCount / 4)) : 0;
+    const premium = lgCount + (ws_roll ? 1 : 0) + (nk_roll ? 1 : 0);
+
+    // Reduce base budget so total enemy count stays within enemyCount; always leave at least 1
+    const origCount   = room.enemyCount;
+    room.enemyCount   = Math.max(1, origCount - premium);
+
+    const ghosts = room.type === 'mixed' ? spawnGhosts(room, px, py) : [];
+    const skulls = spawnSkulls(room, px, py);
+    const ghouls = spawnGhouls(room, px, py);
+
+    room.enemyCount = origCount; // restore before any further reads
+
+    const lg = lg_roll ? spawnLongGhouls(room, px, py, lgCount) : [];
+    const ws = ws_roll ? spawnWhiteSkulls(room, px, py) : [];
+    const nk = nk_roll ? spawnDemon(room, px, py) : [];
+    enemies = [...ghosts, ...skulls, ...ghouls, ...lg, ...ws, ...nk];
   }
   else                             enemies = spawnGhosts(room, px, py);
 

@@ -1,16 +1,18 @@
 class Bullet {
   constructor() {
-    this.active = false;
-    this.pos    = { x: 0, y: 0 };
-    this.vel    = { x: 0, y: 0 };
-    this.ttl    = 0;
-    this.owner  = 'player';   // 'player' | 'enemy'
-    this.damage = C.BULLET_DAMAGE;
-    this.radius = C.BULLET_RADIUS;
-    this.weave  = null;       // set by fireWeaving(); null for straight shots
+    this.active    = false;
+    this.pos       = { x: 0, y: 0 };
+    this.vel       = { x: 0, y: 0 };
+    this.ttl       = 0;
+    this.owner     = 'player';   // 'player' | 'enemy'
+    this.damage    = C.BULLET_DAMAGE;
+    this.radius    = C.BULLET_RADIUS;
+    this.weave     = null;       // set by fireWeaving(); null for straight shots
+    this.canBounce = false;      // true when player has bounce upgrade
+    this.bounces   = 0;          // wall bounces used (max 1; deactivates on 2nd wall)
   }
 
-  deactivate() { this.active = false; this.weave = null; }
+  deactivate() { this.active = false; this.weave = null; this.canBounce = false; this.bounces = 0; }
 }
 
 class BulletPool {
@@ -21,19 +23,21 @@ class BulletPool {
     }
   }
 
-  fire(x, y, vx, vy, owner, damage, radius) {
+  fire(x, y, vx, vy, owner, damage, radius, canBounce) {
     const b = this.pool.find(b => !b.active);
     if (!b) return;
-    b.active   = true;
-    b.pos.x    = x;
-    b.pos.y    = y;
-    b.vel.x    = vx;
-    b.vel.y    = vy;
-    b.ttl      = C.BULLET_TTL;
-    b.owner    = owner  || 'player';
-    b.damage   = damage || C.BULLET_DAMAGE;
-    b.radius   = radius !== undefined ? radius : C.BULLET_RADIUS;
-    b.weave    = null;
+    b.active    = true;
+    b.pos.x     = x;
+    b.pos.y     = y;
+    b.vel.x     = vx;
+    b.vel.y     = vy;
+    b.ttl       = C.BULLET_TTL;
+    b.owner     = owner  || 'player';
+    b.damage    = damage || C.BULLET_DAMAGE;
+    b.radius    = radius !== undefined ? radius : C.BULLET_RADIUS;
+    b.weave     = null;
+    b.canBounce = !!canBounce;
+    b.bounces   = 0;
   }
 
   // Fire a bullet that weaves side to side along its flight path.
@@ -72,21 +76,38 @@ class BulletPool {
         b.vel.y = Math.sin(b.weave.baseAngle + dev) * b.weave.speed;
       }
 
+      const prevX = b.pos.x;
+      const prevY = b.pos.y;
       b.pos.x += b.vel.x;
       b.pos.y += b.vel.y;
       b.ttl--;
 
       if (b.ttl <= 0) { b.deactivate(); continue; }
 
-      // Wall collision
+      // Wall collision — bouncing player bullets reflect once; any other bullet dies
       let dead = false;
+      let bounced = false;
       for (const w of walls) {
         if (circleRectCollide(b.pos.x, b.pos.y, b.radius, w.x, w.y, w.w, w.h)) {
-          dead = true; break;
+          if (b.canBounce && b.bounces < 1) {
+            // Determine which velocity component caused the collision
+            const hitsX = circleRectCollide(b.pos.x, prevY, b.radius, w.x, w.y, w.w, w.h);
+            const hitsY = circleRectCollide(prevX, b.pos.y, b.radius, w.x, w.y, w.w, w.h);
+            if (hitsX) b.vel.x = -b.vel.x;
+            if (hitsY) b.vel.y = -b.vel.y;
+            if (!hitsX && !hitsY) { b.vel.x = -b.vel.x; b.vel.y = -b.vel.y; } // exact corner
+            b.pos.x = prevX + b.vel.x;
+            b.pos.y = prevY + b.vel.y;
+            b.bounces++;
+            bounced = true;
+          } else {
+            dead = true;
+          }
+          break;
         }
       }
-      // Obstacle collision
-      if (!dead) {
+      // Obstacle collision (bullets never bounce off obstacles)
+      if (!dead && !bounced) {
         for (const obs of room.obstacles) {
           if (circleRectCollide(b.pos.x, b.pos.y, b.radius, obs.x, obs.y, obs.w, obs.h)) {
             dead = true; break;

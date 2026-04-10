@@ -156,6 +156,15 @@ class DungeonGraph {
         mr.maxhpPowerupTaken  = false;
         mr.cleared            = true;
       }
+      // Rarely place bounce-bullets powerup in a fourth dead-end (instant collect, permanent)
+      const remaining3 = remaining.filter(r => !r.widePowerup && !r.maxhpPowerup);
+      if (remaining3.length > 0 && Math.random() < 0.30) {
+        const br = remaining3[randInt(0, remaining3.length - 1)];
+        br.bouncePowerup       = { x: C.WIDTH / 2, y: C.HEIGHT / 2 };
+        br.bouncePowerupActive = false;
+        br.bouncePowerupTaken  = false;
+        br.cleared             = true;
+      }
     }
 
     // Assign combat types and enemy counts to remaining rooms (scale with floor)

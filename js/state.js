@@ -81,19 +81,21 @@ function nextFloor() {
   const savedInvulnTimer   = G.player ? G.player.invulnTimer   : 0;
   const savedAutofireShots = G.player ? G.player.autofireShots : 0;
   const savedGodMode       = G.player ? G.player.godMode       : false;
+  const savedBounceBullets = G.player ? G.player.bounceBullets : false;
   const savedCycles        = G.cyclesCompleted;
   G.floor++;
   startGame();
   if (savedHp !== null) {
-    G.player.hp         = savedHp;
-    G.player.maxHp      = savedMaxHp;
-    G.player.powerups    = savedPowerups;
-    G.player.powerupIdx  = savedPowerupIdx;
+    G.player.hp            = savedHp;
+    G.player.maxHp         = savedMaxHp;
+    G.player.powerups      = savedPowerups;
+    G.player.powerupIdx    = savedPowerupIdx;
     G.player.wideShots     = savedWideShots;
     G.player.speedTimer    = savedSpeedTimer;
     G.player.invulnTimer   = savedInvulnTimer;
     G.player.autofireShots = savedAutofireShots;
     G.player.godMode       = savedGodMode;
+    G.player.bounceBullets = savedBounceBullets;
   }
   G.score           = savedScore;
   G.cyclesCompleted = savedCycles;
@@ -159,6 +161,11 @@ function enterRoom(room, fromDir) {
   // Autofire powerup room
   if (room.autofirePowerup && !room.autofirePowerupTaken) {
     room.autofirePowerupActive = true;
+  }
+
+  // Bounce powerup room
+  if (room.bouncePowerup && !room.bouncePowerupTaken) {
+    room.bouncePowerupActive = true;
   }
 
   // Audio: boss mode toggle + room enter SFX
@@ -388,6 +395,18 @@ function checkMaxHpPowerup() {
     room.maxhpPowerupTaken  = true;
     room.maxhpPowerupActive = false;
     AudioEngine.playSFX('maxhp_fanfare');
+  }
+}
+
+function checkBouncePowerup() {
+  const room = G.currentRoom;
+  if (!room || !room.bouncePowerupActive || room.bouncePowerupTaken) return;
+  const p = room.bouncePowerup;
+  if (circleCollide(G.player.pos.x, G.player.pos.y, G.player.radius, p.x, p.y, 14)) {
+    G.player.bounceBullets   = true;
+    room.bouncePowerupTaken  = true;
+    room.bouncePowerupActive = false;
+    AudioEngine.playSFX('pickup');
   }
 }
 

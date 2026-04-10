@@ -34,6 +34,7 @@ const Renderer = {
     this.drawSpeedPowerup(G.currentRoom);
     this.drawInvulnPowerup(G.currentRoom);
     this.drawAutofirePowerup(G.currentRoom);
+    this.drawBouncePowerup(G.currentRoom);
     this.drawRagSymbol(G.currentRoom);
     this.drawDrops(G.drops);
     this.drawFlies(G.flies);
@@ -88,7 +89,7 @@ const Renderer = {
 
     fill(C.COL_HUD_TITLE); textSize(11);
     text('WASD  move     MOUSE  aim     CLICK  shoot     M  map', C.WIDTH / 2, C.HEIGHT / 2 + 47);
-    text('SPACE  use powerup     Q  cycle item     P  pause', C.WIDTH / 2, C.HEIGHT / 2 + 63);
+    text('SPACE  use powerup     Q  choose powerup     P  pause', C.WIDTH / 2, C.HEIGHT / 2 + 63);
     text('Find the boss room and destroy the haunting', C.WIDTH / 2, C.HEIGHT / 2 + 79);
 
     // High score table
@@ -309,7 +310,7 @@ const Renderer = {
     strokeWeight(3); point(p.x, p.y);
     drawingContext.globalAlpha = 1;
     noStroke(); fill(C.COL_PICKUP); textSize(9); textAlign(CENTER, CENTER);
-    text('+HP', p.x, p.y + 22);
+    text('HEAL', p.x, p.y + 22);
   },
 
   drawWidePowerup(room) {
@@ -406,6 +407,25 @@ const Renderer = {
     text('AUTOFIRE', p.x, p.y + 22);
   },
 
+  drawBouncePowerup(room) {
+    if (!room || !room.bouncePowerupActive || room.bouncePowerupTaken) return;
+    const p     = room.bouncePowerup;
+    const pulse = 0.60 + 0.40 * Math.sin(G.frame * 0.08);
+    drawingContext.globalAlpha = pulse;
+    // Outer bubble ring
+    noFill(); stroke(C.COL_BOUNCE_PICKUP); strokeWeight(2);
+    circle(p.x, p.y, 30);
+    // Inner bubble ring
+    strokeWeight(1);
+    circle(p.x, p.y, 18);
+    // Highlight glint — top-left arc suggestion
+    noStroke(); fill(200, 230, 255, 180);
+    circle(p.x - 5, p.y - 5, 5);
+    drawingContext.globalAlpha = 1;
+    noStroke(); fill(C.COL_BOUNCE_PICKUP); textFont('monospace'); textSize(9); textAlign(CENTER, CENTER);
+    text('BOUNCE', p.x, p.y + 24);
+  },
+
   drawDemonTrail(enemies) {
     if (!enemies) return;
     noStroke();
@@ -496,9 +516,19 @@ const Renderer = {
     if (!pool) return;
     for (const b of pool.pool) {
       if (!b.active) continue;
-      noStroke();
-      fill(b.owner === 'player' ? C.COL_BULLET_P : C.COL_BOSS_BULLET);
-      circle(b.pos.x, b.pos.y, b.radius * 2);
+      if (b.canBounce) {
+        // Hollow bubble appearance for bouncing player bullets
+        stroke(C.COL_BOUNCE_PICKUP); strokeWeight(1.5);
+        fill(136, 204, 255, 35);
+        circle(b.pos.x, b.pos.y, b.radius * 2);
+        // Glint highlight
+        noStroke(); fill(220, 240, 255, 160);
+        circle(b.pos.x - b.radius * 0.35, b.pos.y - b.radius * 0.35, b.radius * 0.55);
+      } else {
+        noStroke();
+        fill(b.owner === 'player' ? C.COL_BULLET_P : C.COL_BOSS_BULLET);
+        circle(b.pos.x, b.pos.y, b.radius * 2);
+      }
     }
   },
 
@@ -1671,7 +1701,7 @@ const Renderer = {
                       : pup === 'speed'    ? C.COL_SPEED_PICKUP
                       : pup === 'autofire' ? C.COL_AUTOFIRE_PICKUP
                       :                     C.COL_INVULN_PICKUP;
-          const label = pup === 'heal'     ? '+HP'
+          const label = pup === 'heal'     ? 'HEAL'
                       : pup === 'power'    ? 'PWR'
                       : pup === 'speed'    ? 'SPD'
                       : pup === 'autofire' ? 'ATF'
@@ -1753,11 +1783,15 @@ const Renderer = {
       const hasSpeed    = room.speedPowerupActive    && !room.speedPowerupTaken;
       const hasInvuln   = room.invulnPowerupActive   && !room.invulnPowerupTaken;
       const hasAutofire = room.autofirePowerupActive && !room.autofirePowerupTaken;
-      if (hasHeal || hasPower || hasMaxHp || hasSpeed || hasInvuln || hasAutofire) {
+      const hasBounce   = room.bouncePowerupActive   && !room.bouncePowerupTaken;
+      if (hasHeal || hasPower || hasMaxHp || hasSpeed || hasInvuln || hasAutofire || hasBounce) {
         noStroke(); textSize(11); textAlign(CENTER, BOTTOM);
         if (hasMaxHp) {
           fill(C.COL_MAXHP_PICKUP);
           text('MAX HP UP — walk over to collect instantly', C.WIDTH / 2, C.HEIGHT - 12);
+        } else if (hasBounce) {
+          fill(C.COL_BOUNCE_PICKUP);
+          text('BOUNCE SHOTS — walk over to collect instantly', C.WIDTH / 2, C.HEIGHT - 12);
         } else if (hasSpeed) {
           fill(C.COL_SPEED_PICKUP);
           p.powerups.every(s => s !== null)
@@ -1784,7 +1818,7 @@ const Renderer = {
     }
 
     noStroke(); fill(C.COL_HUD_TEXT); textSize(9); textAlign(LEFT, BOTTOM);
-    text('M:map  Q:cycle  SPC:use', 20, C.HEIGHT - 6);
+    text('M:map  Q:choose powerup  SPC:use', 20, C.HEIGHT - 6);
   },
 
   // ── Overlays ──────────────────────────────────────────────────────────
@@ -1803,7 +1837,7 @@ const Renderer = {
     fill(C.COL_HUD_TITLE); textSize(10); textAlign(CENTER, TOP);
     const ky = C.HEIGHT / 2 + 38;
     text('WASD · move     MOUSE · aim     CLICK · shoot', C.WIDTH / 2, ky);
-    text('SPACE · use powerup     Q · cycle item     M · map', C.WIDTH / 2, ky + 16);
+    text('SPACE · use powerup     Q · choose powerup     M · map', C.WIDTH / 2, ky + 16);
     textAlign(CENTER, CENTER);
   },
 
@@ -1948,8 +1982,9 @@ const Renderer = {
                         : room.widePowerup     && !room.widePowerupTaken     ? { col: C.COL_WIDE_PICKUP,    label: 'PWR'  }
                         : room.speedPowerup    && !room.speedPowerupTaken    ? { col: C.COL_SPEED_PICKUP,   label: 'SPD'  }
                         : room.invulnPowerup   && !room.invulnPowerupTaken   ? { col: C.COL_INVULN_PICKUP,  label: 'INV'  }
-                        : room.autofirePowerup && !room.autofirePowerupTaken ? { col: C.COL_AUTOFIRE_PICKUP, label: 'ATF' }
+                        : room.autofirePowerup && !room.autofirePowerupTaken ? { col: C.COL_AUTOFIRE_PICKUP, label: 'ATF'  }
                         : room.maxhpPowerup    && !room.maxhpPowerupTaken    ? { col: C.COL_MAXHP_PICKUP,   label: 'MXHP' }
+                        : room.bouncePowerup   && !room.bouncePowerupTaken   ? { col: C.COL_BOUNCE_PICKUP,  label: 'BNC'  }
                         : null;
 
       const col = roomPowerup         ? roomPowerup.col

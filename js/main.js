@@ -140,6 +140,7 @@ function draw() {
     checkSpeedPowerup();
     checkInvulnPowerup();
     checkAutofirePowerup();
+    checkBouncePowerup();
     tickParticles();
 
     if (G.clearedFlash > 0) G.clearedFlash--;

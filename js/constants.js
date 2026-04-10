@@ -206,6 +206,7 @@ const C = {
   COL_FLY:         '#44ff66',   // bright green flies
   COL_WIDE_PICKUP: '#44aaff',
   COL_MAXHP_PICKUP: '#ffe066',
+  COL_BOUNCE_PICKUP: '#88ccff',  // pale icy blue — bounce bullets powerup
 
   COL_RAG_SYMBOL:      '#cc44ff',  // colour for R/A/G rune symbols
   RAG_SYMBOL_COLLECT_R: 20,        // collection radius in px
