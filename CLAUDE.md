@@ -56,6 +56,7 @@ js/scores.js      — HighScores: localStorage top-5 table with name entry
 js/renderer.js    — ALL p5.js draw calls live here
 js/main.js        — p5 setup()/draw() + input handlers + dev console
 css/style.css     — page/canvas styling
+aesthetics.md     — style bible: visual look, motion, palette, music + SFX recipes (for reuse in other games)
 ```
 
 ## Game Loop
